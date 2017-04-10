@@ -2,7 +2,7 @@ use num::BigInt;
 use std::rc::Rc;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct Expr<'a: 'b, 'b, T: 'b>(T, ExprF<'a, &'b Expr<'a, 'b, T>>);
+pub struct Expr<'a: 'b, 'b, T: 'b>(pub T, pub ExprF<'a, &'b Expr<'a, 'b, T>>);
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum ExprF<'a, T> {

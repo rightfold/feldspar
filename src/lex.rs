@@ -32,7 +32,7 @@ impl Position {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
-pub struct Lexeme<'a, T>(T, LexemeF<'a>);
+pub struct Lexeme<'a, T>(pub T, pub LexemeF<'a>);
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum LexemeF<'a> {
@@ -55,6 +55,10 @@ pub struct Lexer<'a> {
 impl<'a> Lexer<'a> {
   pub fn new(input: &'a str) -> Self {
     Lexer{input: input, position: Position::zero(), abort: false}
+  }
+
+  pub fn next_position(&self) -> Position {
+    self.position
   }
 
   fn peek_char(&self) -> Option<char> {
