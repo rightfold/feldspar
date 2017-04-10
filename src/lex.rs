@@ -19,6 +19,16 @@ impl Position {
   pub fn zero() -> Self {
     Position::new(0, 1, 1)
   }
+
+  pub fn advance(&mut self, char: char) {
+    self.offset += 1;
+    if char == '\n' {
+      self.line += 1;
+      self.column = 1;
+    } else {
+      self.column += 1;
+    }
+  }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -27,6 +37,12 @@ pub struct Lexeme<'a, T>(T, LexemeF<'a>);
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum LexemeF<'a> {
   Identifier(&'a str),
+
+  Arrow,
+  LeftParenthesis,
+  RightParenthesis,
+  LeftBrace,
+  RightBrace,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -45,6 +61,16 @@ impl<'a> Lexer<'a> {
     self.input.chars().next()
   }
 
+  fn take_char(&mut self) -> Option<char> {
+    let mut chars = self.input.chars();
+    let result = chars.next();
+    for c in result {
+      self.position.advance(c);
+    }
+    self.input = chars.as_str();
+    result
+  }
+
   fn take_chars_while<F>(&mut self, pred: F) -> &'a str
     where F: Fn(char) -> bool {
     let terminator = (self.input.len(), '\n');
@@ -54,13 +80,7 @@ impl<'a> Lexer<'a> {
       if !pred(c) {
         break;
       }
-      self.position.offset += 1;
-      if c == '\n' {
-        self.position.line += 1;
-        self.position.column = 1;
-      } else {
-        self.position.column += 1;
-      }
+      self.position.advance(c);
     }
     let result = unsafe { self.input.slice_unchecked(0, len) };
     self.input = unsafe { self.input.slice_unchecked(len, self.input.len()) };
@@ -80,13 +100,39 @@ impl<'a> Iterator for Lexer<'a> {
     match self.peek_char() {
       None =>
         None,
+      Some('(') => {
+        self.take_char();
+        Some(Ok(Lexeme(position, LexemeF::LeftParenthesis)))
+      },
+      Some(')') => {
+        self.take_char();
+        Some(Ok(Lexeme(position, LexemeF::RightParenthesis)))
+      },
+      Some('{') => {
+        self.take_char();
+        Some(Ok(Lexeme(position, LexemeF::LeftBrace)))
+      },
+      Some('}') => {
+        self.take_char();
+        Some(Ok(Lexeme(position, LexemeF::RightBrace)))
+      },
+      Some('-') => {
+        self.take_char();
+        if self.peek_char() == Some('>') {
+          self.take_char();
+          Some(Ok(Lexeme(position, LexemeF::Arrow)))
+        } else {
+          self.abort = true;
+          Some(Err(position))
+        }
+      },
       Some(c) if is_identifier_start(c) => {
         let name = self.take_chars_while(is_identifier_continue);
         Some(Ok(Lexeme(position, LexemeF::Identifier(name))))
       },
       Some(_) => {
         self.abort = true;
-        Some(Err(self.position))
+        Some(Err(position))
       },
     }
   }
@@ -156,6 +202,20 @@ mod test {
       vec![
         Ok(Lexeme(Position::new(0, 1, 1), LexemeF::Identifier("ab"))),
         Ok(Lexeme(Position::new(3, 1, 4), LexemeF::Identifier("cd"))),
+      ]
+    );
+  }
+
+  #[test]
+  fn test_punctuation() {
+    assert_eq!(
+      Lexer::new("(){}->").collect::<Vec<_>>(),
+      vec![
+        Ok(Lexeme(Position::new(0, 1, 1), LexemeF::LeftParenthesis)),
+        Ok(Lexeme(Position::new(1, 1, 2), LexemeF::RightParenthesis)),
+        Ok(Lexeme(Position::new(2, 1, 3), LexemeF::LeftBrace)),
+        Ok(Lexeme(Position::new(3, 1, 4), LexemeF::RightBrace)),
+        Ok(Lexeme(Position::new(4, 1, 5), LexemeF::Arrow)),
       ]
     );
   }
