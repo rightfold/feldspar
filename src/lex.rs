@@ -38,11 +38,12 @@ pub struct Lexeme<'a, T>(pub T, pub LexemeF<'a>);
 pub enum LexemeF<'a> {
   Identifier(&'a str),
 
+  Fun,
+  End,
+
   Arrow,
   LeftParenthesis,
   RightParenthesis,
-  LeftBrace,
-  RightBrace,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -112,14 +113,6 @@ impl<'a> Iterator for Lexer<'a> {
         self.take_char();
         Some(Ok(Lexeme(position, LexemeF::RightParenthesis)))
       },
-      Some('{') => {
-        self.take_char();
-        Some(Ok(Lexeme(position, LexemeF::LeftBrace)))
-      },
-      Some('}') => {
-        self.take_char();
-        Some(Ok(Lexeme(position, LexemeF::RightBrace)))
-      },
       Some('-') => {
         self.take_char();
         if self.peek_char() == Some('>') {
@@ -132,7 +125,11 @@ impl<'a> Iterator for Lexer<'a> {
       },
       Some(c) if is_identifier_start(c) => {
         let name = self.take_chars_while(is_identifier_continue);
-        Some(Ok(Lexeme(position, LexemeF::Identifier(name))))
+        Some(Ok(Lexeme(position, match name {
+          "fun" => LexemeF::Fun,
+          "end" => LexemeF::End,
+          _ => LexemeF::Identifier(name),
+        })))
       },
       Some(_) => {
         self.abort = true;
@@ -197,6 +194,10 @@ mod test {
       Lexer::new("ab_cd'").collect::<Vec<_>>(),
       vec![Ok(Lexeme(Position::new(0, 1, 1), LexemeF::Identifier("ab_cd'")))]
     );
+    assert_eq!(
+      Lexer::new("funend").collect::<Vec<_>>(),
+      vec![Ok(Lexeme(Position::new(0, 1, 1), LexemeF::Identifier("funend")))]
+    );
   }
 
   #[test]
@@ -211,15 +212,24 @@ mod test {
   }
 
   #[test]
+  fn test_keywords() {
+    assert_eq!(
+      Lexer::new("fun end").collect::<Vec<_>>(),
+      vec![
+        Ok(Lexeme(Position::new(0, 1, 1), LexemeF::Fun)),
+        Ok(Lexeme(Position::new(4, 1, 5), LexemeF::End)),
+      ]
+    );
+  }
+
+  #[test]
   fn test_punctuation() {
     assert_eq!(
-      Lexer::new("(){}->").collect::<Vec<_>>(),
+      Lexer::new("()->").collect::<Vec<_>>(),
       vec![
         Ok(Lexeme(Position::new(0, 1, 1), LexemeF::LeftParenthesis)),
         Ok(Lexeme(Position::new(1, 1, 2), LexemeF::RightParenthesis)),
-        Ok(Lexeme(Position::new(2, 1, 3), LexemeF::LeftBrace)),
-        Ok(Lexeme(Position::new(3, 1, 4), LexemeF::RightBrace)),
-        Ok(Lexeme(Position::new(4, 1, 5), LexemeF::Arrow)),
+        Ok(Lexeme(Position::new(2, 1, 3), LexemeF::Arrow)),
       ]
     );
   }
