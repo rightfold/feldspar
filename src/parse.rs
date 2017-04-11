@@ -32,7 +32,21 @@ pub fn read_expr_1<'a, 'b>(
   arena: &'b Arena<Expr<'a, 'b, Position>>,
   lexer: &mut Lexer<'a>,
 ) -> Result<&'b Expr<'a, 'b, Position>, Error> {
-  read_expr_2(arena, lexer)
+  let mut callee = try!(read_expr_2(arena, lexer));
+  loop {
+    let lexer_clone = lexer.clone();
+    match read_expr_2(arena, lexer) {
+      Ok(argument) => {
+        let call = Expr(callee.0, ExprF::App(callee, argument));
+        callee = arena.alloc(call);
+      },
+      Err(_) => {
+        lexer.clone_from(&lexer_clone);
+        break;
+      },
+    }
+  }
+  Ok(callee)
 }
 
 pub fn read_expr_2<'a, 'b>(
@@ -95,6 +109,36 @@ mod test {
           &Expr(
             Position::new(11, 1, 12),
             ExprF::Var("bar"),
+          ),
+        ),
+      ))
+    );
+  }
+
+  #[test]
+  fn test_read_app_expr() {
+    let mut arena = Arena::new();
+    assert_eq!(
+      read_expr(&mut arena, &mut Lexer::new("foo bar baz")),
+      Ok(&Expr(
+        Position::new(0, 1, 1),
+        ExprF::App(
+          &Expr(
+            Position::new(0, 1, 1),
+            ExprF::App(
+              &Expr(
+                Position::new(0, 1, 1),
+                ExprF::Var("foo"),
+              ),
+              &Expr(
+                Position::new(4, 1, 5),
+                ExprF::Var("bar"),
+              ),
+            ),
+          ),
+          &Expr(
+            Position::new(8, 1, 9),
+            ExprF::Var("baz"),
           ),
         ),
       ))

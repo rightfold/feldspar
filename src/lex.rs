@@ -46,7 +46,7 @@ pub enum LexemeF<'a> {
   RightParenthesis,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct Lexer<'a> {
   input: &'a str,
   position: Position,
