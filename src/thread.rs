@@ -54,8 +54,11 @@ impl<'chunk, 'gc> Thread<'chunk, 'gc> where 'chunk: 'gc {
           pcounter: 0,
           locals: {
             let mut locals_vec = vec![];
-            locals_vec.resize(chunk.locals as usize, None);
+            locals_vec.resize((chunk.locals + chunk.captures) as usize, None);
             locals_vec[0] = Some(argument);
+            for offset in 0 .. chunk.captures {
+              locals_vec[offset as usize + 1] = callee.get_ptr(offset);
+            }
             locals_vec
           },
         });
@@ -82,6 +85,12 @@ impl<'chunk, 'gc> Thread<'chunk, 'gc> where 'chunk: 'gc {
               stack_frame.pcounter += 1;
             },
 
+            Inst::GetLocal(offset) => {
+              let value = stack_frame.locals[offset as usize].clone().unwrap();
+              self.eval_stack.push(value);
+              stack_frame.pcounter += 1;
+            },
+
             Inst::New(ptr_count, aux_count) => {
               let new = self.gc.alloc(ptr_count, aux_count);
               for offset in (0 .. ptr_count).rev() {
@@ -104,6 +113,7 @@ impl<'chunk, 'gc> Thread<'chunk, 'gc> where 'chunk: 'gc {
                 let ptr = self.eval_stack.pop().unwrap();
                 new.set_ptr(offset, &ptr);
               }
+              *unsafe { new.aux_any::<&'chunk Chunk<'chunk>>() } = chunk;
               self.eval_stack.push(new);
               stack_frame.pcounter += 1;
             },
@@ -119,7 +129,41 @@ mod test {
   use super::*;
 
   #[test]
-  fn test_resume() {
+  fn test_call() {
+    let chunk = Chunk{
+      insts: vec![
+        Inst::GetLocal(1),
+        Inst::GetLocal(0),
+        Inst::New(2, 0),
+        Inst::Return,
+      ],
+      locals: 1,
+      captures: 1,
+    };
+    let gc = GC::new();
+    let bytecode = [
+      Inst::NewBool(true),
+      Inst::NewFunc(&chunk),
+      Inst::NewBool(false),
+      Inst::Call,
+      Inst::Return,
+    ];
+    let mut thread = Thread::new(&gc, &bytecode, 0);
+    assert_eq!(thread.resume(), Status::Finished);
+    assert_eq!(thread.call_stack.len(), 0);
+    assert_eq!(thread.eval_stack.len(), 1);
+    assert_eq!(thread.eval_stack[0].ptr_count(), 2);
+    assert_eq!(thread.eval_stack[0].aux_count(), 0);
+    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().ptr_count(), 0);
+    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 1);
+    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux(), &[1]);
+    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().ptr_count(), 0);
+    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 1);
+    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux(), &[0]);
+  }
+
+  #[test]
+  fn test_new() {
     let gc = GC::new();
     let bytecode = [
       Inst::NewBool(true),

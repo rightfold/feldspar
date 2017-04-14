@@ -14,6 +14,8 @@ pub enum Inst<'chunk> {
 
   Pop,
 
+  GetLocal(u16),
+
   New(u16, u16),
   NewBool(bool),
   NewFunc(&'chunk Chunk<'chunk>),
