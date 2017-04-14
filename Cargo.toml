@@ -3,5 +3,6 @@ name = "feldspar"
 version = "0.0.1"
 
 [dependencies]
+libc = "0.2.21"
 num = "0.1.37"
 typed-arena = "1.2.0"
