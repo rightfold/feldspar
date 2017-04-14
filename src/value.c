@@ -32,8 +32,12 @@ uint16_t fs_aux_count(fs_lay *lay) {
   return lay->aux_count;
 }
 
-fs_lay *fs_ptr(fs_lay *lay, uint16_t offset) {
+fs_lay *fs_get_ptr(fs_lay *lay, uint16_t offset) {
   return lay->ptrs[offset];
+}
+
+void fs_set_ptr(fs_lay *lay, uint16_t offset, fs_lay *ptr) {
+  lay->ptrs[offset] = ptr;
 }
 
 uint8_t *fs_aux(fs_lay *lay) {

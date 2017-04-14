@@ -6,7 +6,8 @@ extern {
   fn fs_dealloc(lay: *mut c_void);
   fn fs_ptr_count(lay: *mut c_void) -> u16;
   fn fs_aux_count(lay: *mut c_void) -> u16;
-  fn fs_ptr(lay: *mut c_void, offset: u16) -> *mut c_void;
+  fn fs_get_ptr(lay: *mut c_void, offset: u16) -> *mut c_void;
+  fn fs_set_ptr(lay: *mut c_void, offset: u16, ptr: *mut c_void) -> *mut c_void;
   fn fs_aux(lay: *mut c_void) -> *mut u8;
 }
 
@@ -20,13 +21,20 @@ impl<'a> Ref<'a> {
     if offset >= self.ptr_count() {
       None
     } else {
-      let lay = unsafe { fs_ptr(self.lay, offset) };
+      let lay = unsafe { fs_get_ptr(self.lay, offset) };
       if lay.is_null() {
         None
       } else {
         // FIXME: Tell GC to retain root.
         Some(Ref{gc: self.gc, lay: lay})
       }
+    }
+  }
+
+  pub fn set_ptr(&self, offset: u16, ptr: &Ref<'a>) {
+    // FIXME: Check that GCs are the same.
+    if offset < self.ptr_count() {
+      unsafe { fs_set_ptr(self.lay, offset, ptr.lay) };
     }
   }
 
