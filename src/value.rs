@@ -1,52 +1,54 @@
-use libc::{calloc, c_void, memcpy};
-use std::mem::{size_of, transmute};
-use std::ptr;
+use libc::c_void;
+use std::slice;
 
-fn ptr_size() -> usize {
-  size_of::<*mut c_void>()
+extern {
+  fn fs_alloc(ptr_count: u16, aux_count: u16) -> *mut c_void;
+  fn fs_dealloc(lay: *mut c_void);
+  fn fs_ptr_count(lay: *mut c_void) -> u16;
+  fn fs_aux_count(lay: *mut c_void) -> u16;
+  fn fs_ptr(lay: *mut c_void, offset: u16) -> *mut c_void;
+  fn fs_aux(lay: *mut c_void) -> *mut u8;
 }
 
-pub struct Ref<'a>(&'a GC, *mut c_void);
+pub struct Ref<'a> {
+  gc: &'a GC,
+  lay: *mut c_void,
+}
 
 impl<'a> Ref<'a> {
-  pub fn pointer(&self, offset: u16) -> Option<Ref<'a>> {
-    if offset >= self.pointer_count() {
+  pub fn get_ptr(&self, offset: u16) -> Option<Ref<'a>> {
+    if offset >= self.ptr_count() {
       None
     } else {
-      let mut result = ptr::null_mut();
-      unsafe {
-        memcpy(
-          transmute(&mut result),
-          self.1.offset((4 + offset as usize * ptr_size()) as isize),
-          ptr_size(),
-        );
-      }
-      if result.is_null() {
+      let lay = unsafe { fs_ptr(self.lay, offset) };
+      if lay.is_null() {
         None
       } else {
         // FIXME: Tell GC to retain root.
-        Some(Ref(self.0, result))
+        Some(Ref{gc: self.gc, lay: lay})
       }
     }
   }
 
-  pub fn pointer_count(&self) -> u16 {
-    let mut result = 0u16;
-    unsafe { memcpy(transmute(&mut result), self.1.offset(0), 2) };
-    result
+  pub fn aux(&self) -> &mut [u8] {
+    unsafe {
+      slice::from_raw_parts_mut(fs_aux(self.lay), self.aux_count() as usize)
+    }
   }
 
-  pub fn auxiliary_count(&self) -> u16 {
-    let mut result = 0u16;
-    unsafe { memcpy(transmute(&mut result), self.1.offset(2), 2) };
-    result
+  pub fn ptr_count(&self) -> u16 {
+    unsafe { fs_ptr_count(self.lay) }
+  }
+
+  pub fn aux_count(&self) -> u16 {
+    unsafe { fs_aux_count(self.lay) }
   }
 }
 
 impl<'a> Clone for Ref<'a> {
   fn clone(&self) -> Self {
     // FIXME: Tell GC to retain root.
-    Ref(self.0, self.1)
+    Ref{gc: self.gc, lay: self.lay}
   }
 }
 
@@ -64,14 +66,11 @@ impl GC {
     GC{}
   }
 
-  pub fn alloc<'a>(&'a self, np: u16, nb: u16) -> Ref<'a> {
+  pub fn alloc<'a>(&'a self, ptr_count: u16, aux_count: u16) -> Ref<'a> {
     unsafe {
       // FIXME: Tell GC to retain root.
-      let size = 4 + ptr_size() * np as usize + nb as usize;
-      let data = calloc(1, size);
-      memcpy(data.offset(0), transmute(&np), 2);
-      memcpy(data.offset(2), transmute(&nb), 2);
-      Ref(self, data)
+      let lay = fs_alloc(ptr_count, aux_count);
+      Ref{gc: self, lay: lay}
     }
   }
 }
@@ -83,13 +82,13 @@ mod test {
   #[test]
   fn test_alloc() {
     let gc = GC::new();
-    for pointer_count in 0 .. 10 {
-      for auxiliary_count in 0 .. 10 {
-        let r = gc.alloc(pointer_count, auxiliary_count);
-        assert_eq!(r.pointer_count(),   pointer_count);
-        assert_eq!(r.auxiliary_count(), auxiliary_count);
+    for ptr_count in 0 .. 10 {
+      for aux_count in 0 .. 10 {
+        let r = gc.alloc(ptr_count, aux_count);
+        assert_eq!(r.ptr_count(), ptr_count);
+        assert_eq!(r.aux_count(), aux_count);
         for offset in 0 .. 10 {
-          assert!(r.pointer(offset).is_none());
+          assert!(r.get_ptr(offset).is_none());
         }
       }
     }
