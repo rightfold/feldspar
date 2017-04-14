@@ -1,4 +1,5 @@
 use libc::c_void;
+use std::mem;
 use std::slice;
 
 extern {
@@ -42,6 +43,10 @@ impl<'a> Ref<'a> {
     unsafe {
       slice::from_raw_parts_mut(fs_aux(self.lay), self.aux_count() as usize)
     }
+  }
+
+  pub unsafe fn aux_any<T>(&self) -> &mut T {
+    mem::transmute::<*const u8, &mut T>(self.aux().as_ptr())
   }
 
   pub fn ptr_count(&self) -> u16 {

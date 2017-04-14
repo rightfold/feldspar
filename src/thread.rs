@@ -1,16 +1,17 @@
-use bytecode::Inst;
+use bytecode::{Chunk, Inst};
+use std::mem;
 use value::{GC, Ref};
 
-pub struct Thread<'a, 'b> {
-  gc: &'b GC,
-  call_stack: Vec<StackFrame<'a, 'b>>,
-  eval_stack: Vec<Ref<'b>>,
+pub struct Thread<'chunk, 'gc> where 'chunk: 'gc {
+  gc: &'gc GC,
+  call_stack: Vec<StackFrame<'chunk, 'gc>>,
+  eval_stack: Vec<Ref<'gc>>,
 }
 
-struct StackFrame<'a, 'b> {
-  bytecode: &'a [Inst],
+struct StackFrame<'chunk, 'gc> where 'chunk: 'gc {
+  bytecode: &'chunk [Inst<'chunk>],
   pcounter: usize,
-  locals: Vec<Option<Ref<'b>>>,
+  locals: Vec<Option<Ref<'gc>>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -19,8 +20,9 @@ pub enum Status {
   Finished,
 }
 
-impl<'a, 'b> Thread<'a, 'b> {
-  pub fn new(gc: &'b GC, bytecode: &'a [Inst], locals: usize) -> Self {
+impl<'chunk, 'gc> Thread<'chunk, 'gc> where 'chunk: 'gc {
+  pub fn new(gc: &'gc GC, bytecode: &'chunk [Inst<'chunk>], locals: usize)
+    -> Self {
     let stack_frame = StackFrame{
       bytecode: bytecode,
       pcounter: 0,
@@ -39,10 +41,25 @@ impl<'a, 'b> Thread<'a, 'b> {
 
   pub fn resume(&mut self) -> Status {
     let mut pop_call_stack = false;
+    let mut push_call_stack: Option<(Ref<'gc>, Ref<'gc>)> = None;
     loop {
       if pop_call_stack {
         self.call_stack.pop();
         pop_call_stack = false;
+      }
+      if let Some((callee, argument)) = push_call_stack {
+        let chunk = unsafe { callee.aux_any::<&'chunk Chunk<'chunk>>() };
+        self.call_stack.push(StackFrame{
+          bytecode: &chunk.insts,
+          pcounter: 0,
+          locals: {
+            let mut locals_vec = vec![];
+            locals_vec.resize(chunk.locals as usize, None);
+            locals_vec[0] = Some(argument);
+            locals_vec
+          },
+        });
+        push_call_stack = None;
       }
       match self.call_stack.last_mut() {
         None => return Status::Finished,
@@ -50,6 +67,13 @@ impl<'a, 'b> Thread<'a, 'b> {
           match stack_frame.bytecode[stack_frame.pcounter] {
             Inst::NoOp =>
               stack_frame.pcounter += 1,
+
+            Inst::Call => {
+              let argument = self.eval_stack.pop().unwrap();
+              let callee = self.eval_stack.pop().unwrap();
+              stack_frame.pcounter += 1;
+              push_call_stack = Some((callee, argument));
+            },
             Inst::Return =>
               pop_call_stack = true,
 
@@ -70,6 +94,16 @@ impl<'a, 'b> Thread<'a, 'b> {
             Inst::NewBool(value) => {
               let new = self.gc.alloc(0, 1);
               new.aux()[0] = value as u8;
+              self.eval_stack.push(new);
+              stack_frame.pcounter += 1;
+            },
+            Inst::NewFunc(chunk) => {
+              let aux_count = mem::size_of::<&'chunk Chunk<'chunk>>() as u16;
+              let new = self.gc.alloc(chunk.captures, aux_count);
+              for offset in (0 .. chunk.captures).rev() {
+                let ptr = self.eval_stack.pop().unwrap();
+                new.set_ptr(offset, &ptr);
+              }
               self.eval_stack.push(new);
               stack_frame.pcounter += 1;
             },
