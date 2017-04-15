@@ -14,7 +14,7 @@ struct StackFrame<'chunk, 'gc> where 'chunk: 'gc {
   locals: Vec<Option<Ref<'gc>>>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Status {
   Paused,
   Finished,

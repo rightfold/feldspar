@@ -2,7 +2,7 @@ use lex::{Lexeme, LexemeF, Lexer, Position};
 use syntax::{Expr, ExprF};
 use typed_arena::Arena;
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Error(Position, &'static str);
 
 fn read_lexeme<'a>(lexer: &mut Lexer<'a>)

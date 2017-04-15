@@ -1,11 +1,11 @@
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Chunk<'chunk> {
   pub insts: Vec<Inst<'chunk>>,
   pub locals: u16,
   pub captures: u16,
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Inst<'chunk> {
   NoOp,
 

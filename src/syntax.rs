@@ -1,10 +1,10 @@
 use num::BigInt;
 use std::rc::Rc;
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Expr<'a: 'b, 'b, T: 'b>(pub T, pub ExprF<'a, &'b Expr<'a, 'b, T>>);
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum ExprF<'a, T> {
   Lit(Literal<'a>),
   Var(&'a str),
@@ -12,7 +12,7 @@ pub enum ExprF<'a, T> {
   App(T, T),
 }
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Literal<'a> {
   Bool(bool),
   Int(Rc<BigInt>),

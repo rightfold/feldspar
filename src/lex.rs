@@ -1,6 +1,6 @@
 use std::iter;
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Position {
   pub offset: usize,
   pub line: usize,
@@ -31,10 +31,10 @@ impl Position {
   }
 }
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Lexeme<'a, T>(pub T, pub LexemeF<'a>);
 
-#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LexemeF<'a> {
   Identifier(&'a str),
 
@@ -46,7 +46,7 @@ pub enum LexemeF<'a> {
   RightParenthesis,
 }
 
-#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug)]
 pub struct Lexer<'a> {
   input: &'a str,
   position: Position,
