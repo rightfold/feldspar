@@ -4,6 +4,7 @@ extern crate typed_arena;
 
 pub mod bytecode;
 pub mod check;
+pub mod codegen;
 pub mod interpret;
 pub mod lex;
 pub mod parse;
