@@ -1,8 +1,8 @@
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Chunk {
   pub insts: Vec<Inst>,
-  pub locals: u16,
-  pub captures: u16,
+  pub locals: usize,
+  pub captures: usize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -14,9 +14,9 @@ pub enum Inst {
 
   Pop,
 
-  GetLocal(u16),
+  GetLocal(usize),
 
-  New(u16, u16),
+  New(usize, usize),
   NewBool(bool),
   NewFunc(usize),
 }

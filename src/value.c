@@ -2,13 +2,13 @@
 #include <stdlib.h>
 
 typedef struct fs_lay {
-  uint16_t ptr_count;
-  uint16_t aux_count;
+  size_t ptr_count;
+  size_t aux_count;
   struct fs_lay *ptrs[];
 } fs_lay;
 
-fs_lay *fs_alloc(uint16_t ptr_count, uint16_t aux_count) {
-  uint16_t i;
+fs_lay *fs_alloc(size_t ptr_count, size_t aux_count) {
+  size_t i;
   fs_lay *lay;
 
   lay = malloc(sizeof(fs_lay) + sizeof(fs_lay *) * ptr_count + aux_count);
@@ -24,19 +24,19 @@ void fs_dealloc(fs_lay *lay) {
   free(lay);
 }
 
-uint16_t fs_ptr_count(fs_lay *lay) {
+size_t fs_ptr_count(fs_lay *lay) {
   return lay->ptr_count;
 }
 
-uint16_t fs_aux_count(fs_lay *lay) {
+size_t fs_aux_count(fs_lay *lay) {
   return lay->aux_count;
 }
 
-fs_lay *fs_get_ptr(fs_lay *lay, uint16_t offset) {
+fs_lay *fs_get_ptr(fs_lay *lay, size_t offset) {
   return lay->ptrs[offset];
 }
 
-void fs_set_ptr(fs_lay *lay, uint16_t offset, fs_lay *ptr) {
+void fs_set_ptr(fs_lay *lay, size_t offset, fs_lay *ptr) {
   lay->ptrs[offset] = ptr;
 }
 

@@ -61,10 +61,10 @@ impl<'chunk, 'gc, GetChunk> Thread<'chunk, 'gc, GetChunk>
           pcounter: 0,
           locals: {
             let mut locals_vec = vec![];
-            locals_vec.resize((chunk.locals + chunk.captures) as usize, None);
+            locals_vec.resize(chunk.locals + chunk.captures, None);
             locals_vec[0] = Some(argument);
             for offset in 0 .. chunk.captures {
-              locals_vec[offset as usize + 1] = callee.get_ptr(offset);
+              locals_vec[offset + 1] = callee.get_ptr(offset);
             }
             locals_vec
           },
@@ -93,7 +93,7 @@ impl<'chunk, 'gc, GetChunk> Thread<'chunk, 'gc, GetChunk>
             },
 
             Inst::GetLocal(offset) => {
-              let value = stack_frame.locals[offset as usize].clone().unwrap();
+              let value = stack_frame.locals[offset].clone().unwrap();
               self.eval_stack.push(value);
               stack_frame.pcounter += 1;
             },
@@ -115,7 +115,7 @@ impl<'chunk, 'gc, GetChunk> Thread<'chunk, 'gc, GetChunk>
             },
             Inst::NewFunc(chunk_id) => {
               let chunk = (self.get_chunk)(chunk_id);
-              let aux_count = mem::size_of::<usize>() as u16;
+              let aux_count = mem::size_of::<usize>();
               let new = self.gc.alloc(chunk.captures, aux_count);
               for offset in (0 .. chunk.captures).rev() {
                 let ptr = self.eval_stack.pop().unwrap();
