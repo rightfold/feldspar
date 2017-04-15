@@ -2,14 +2,15 @@ use bytecode::{Chunk, Inst};
 use std::mem;
 use value::{GC, Ref};
 
-pub struct Thread<'chunk, 'gc> where 'chunk: 'gc {
+pub struct Thread<'chunk, 'gc, GetChunk> {
   gc: &'gc GC,
+  get_chunk: GetChunk,
   call_stack: Vec<StackFrame<'chunk, 'gc>>,
   eval_stack: Vec<Ref<'gc>>,
 }
 
-struct StackFrame<'chunk, 'gc> where 'chunk: 'gc {
-  bytecode: &'chunk [Inst<'chunk>],
+struct StackFrame<'chunk, 'gc> {
+  bytecode: &'chunk [Inst],
   pcounter: usize,
   locals: Vec<Option<Ref<'gc>>>,
 }
@@ -20,9 +21,14 @@ pub enum Status {
   Finished,
 }
 
-impl<'chunk, 'gc> Thread<'chunk, 'gc> where 'chunk: 'gc {
-  pub fn new(gc: &'gc GC, bytecode: &'chunk [Inst<'chunk>], locals: usize)
-    -> Self {
+impl<'chunk, 'gc, GetChunk> Thread<'chunk, 'gc, GetChunk>
+  where GetChunk: Fn(usize) -> &'chunk Chunk {
+  pub fn new(
+    gc: &'gc GC,
+    get_chunk: GetChunk,
+    bytecode: &'chunk [Inst],
+    locals: usize,
+  ) -> Self {
     let stack_frame = StackFrame{
       bytecode: bytecode,
       pcounter: 0,
@@ -34,6 +40,7 @@ impl<'chunk, 'gc> Thread<'chunk, 'gc> where 'chunk: 'gc {
     };
     Thread{
       gc: gc,
+      get_chunk: get_chunk,
       call_stack: vec![stack_frame],
       eval_stack: vec![],
     }
@@ -48,7 +55,7 @@ impl<'chunk, 'gc> Thread<'chunk, 'gc> where 'chunk: 'gc {
         pop_call_stack = false;
       }
       if let Some((callee, argument)) = push_call_stack {
-        let chunk = unsafe { callee.aux_any::<&'chunk Chunk<'chunk>>() };
+        let chunk = (self.get_chunk)(*callee.aux_usize());
         self.call_stack.push(StackFrame{
           bytecode: &chunk.insts,
           pcounter: 0,
@@ -106,14 +113,15 @@ impl<'chunk, 'gc> Thread<'chunk, 'gc> where 'chunk: 'gc {
               self.eval_stack.push(new);
               stack_frame.pcounter += 1;
             },
-            Inst::NewFunc(chunk) => {
-              let aux_count = mem::size_of::<&'chunk Chunk<'chunk>>() as u16;
+            Inst::NewFunc(chunk_id) => {
+              let chunk = (self.get_chunk)(chunk_id);
+              let aux_count = mem::size_of::<usize>() as u16;
               let new = self.gc.alloc(chunk.captures, aux_count);
               for offset in (0 .. chunk.captures).rev() {
                 let ptr = self.eval_stack.pop().unwrap();
                 new.set_ptr(offset, &ptr);
               }
-              *unsafe { new.aux_any::<&'chunk Chunk<'chunk>>() } = chunk;
+              *new.aux_usize() = chunk_id;
               self.eval_stack.push(new);
               stack_frame.pcounter += 1;
             },
@@ -143,12 +151,13 @@ mod test {
     let gc = GC::new();
     let bytecode = [
       Inst::NewBool(true),
-      Inst::NewFunc(&chunk),
+      Inst::NewFunc(0),
       Inst::NewBool(false),
       Inst::Call,
       Inst::Return,
     ];
-    let mut thread = Thread::new(&gc, &bytecode, 0);
+    let get_chunk = |_| &chunk;
+    let mut thread = Thread::new(&gc, get_chunk, &bytecode, 0);
     assert_eq!(thread.resume(), Status::Finished);
     assert_eq!(thread.call_stack.len(), 0);
     assert_eq!(thread.eval_stack.len(), 1);
@@ -171,7 +180,8 @@ mod test {
       Inst::New(2, 0),
       Inst::Return,
     ];
-    let mut thread = Thread::new(&gc, &bytecode, 0);
+    let get_chunk = |_| panic!();
+    let mut thread = Thread::new(&gc, get_chunk, &bytecode, 0);
     assert_eq!(thread.resume(), Status::Finished);
     assert_eq!(thread.call_stack.len(), 0);
     assert_eq!(thread.eval_stack.len(), 1);

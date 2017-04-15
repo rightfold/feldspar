@@ -45,8 +45,14 @@ impl<'a> Ref<'a> {
     }
   }
 
-  pub unsafe fn aux_any<T>(&self) -> &mut T {
-    mem::transmute::<*const u8, &mut T>(self.aux().as_ptr())
+  pub fn aux_usize(&self) -> &mut usize {
+    let aux = self.aux();
+    if aux.len() != mem::size_of::<usize>() {
+      panic!("Ref::aux_usize: invalid aux size");
+    }
+    unsafe {
+      mem::transmute::<*const u8, &mut usize>(self.aux().as_ptr())
+    }
   }
 
   pub fn ptr_count(&self) -> u16 {
