@@ -1,6 +1,8 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
+use syntax::{Expr, ExprF};
 use typed_arena::Arena;
+
+pub type Error = &'static str;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ID(usize);
@@ -10,7 +12,13 @@ pub enum Ty<'ty> {
   Deferred(ID),
   Func(&'ty Ty<'ty>, &'ty Ty<'ty>),
   Bool,
+  Int,
+  Str,
 }
+
+pub static TY_BOOL: Ty<'static> = Ty::Bool;
+pub static TY_INT:  Ty<'static> = Ty::Int;
+pub static TY_STR:  Ty<'static> = Ty::Str;
 
 pub struct Check<'ty> {
   arena: &'ty Arena<Ty<'ty>>,
@@ -48,7 +56,7 @@ impl<'ty> Check<'ty> {
     }
   }
 
-  pub fn unify(&mut self, ty: &'ty Ty<'ty>, uy: &'ty Ty<'ty>) -> Result<(), ()> {
+  pub fn unify(&mut self, ty: &'ty Ty<'ty>, uy: &'ty Ty<'ty>) -> Result<(), Error> {
     match (self.purge(ty), self.purge(uy)) {
       (&Ty::Deferred(ty_id), &Ty::Deferred(uy_id))
         if ty_id == uy_id =>
@@ -68,8 +76,54 @@ impl<'ty> Check<'ty> {
       },
       (&Ty::Bool, &Ty::Bool) =>
         Ok(()),
-      _ =>
-        Err(()),
+      (&Ty::Int, &Ty::Int) =>
+        Ok(()),
+      (&Ty::Str, &Ty::Str) =>
+        Ok(()),
+      (a, b) => {
+        println!("{:?} /= {:?}", a, b);
+        Err("cannot unify types")
+      },
+    }
+  }
+
+  pub fn infer<T>(
+    &mut self,
+    env: &HashMap<&str, &'ty Ty<'ty>>,
+    expr: &Expr<T>,
+  ) -> Result<&'ty Ty<'ty>, Error> {
+    match expr.1 {
+      ExprF::Lit(_) =>
+        // FIXME: Non-Boolean literals.
+        Ok(&TY_BOOL),
+      ExprF::Var(name) =>
+        match env.get(&name) {
+          Some(ty) => Ok(ty),
+          None => {
+            println!("{:?}", name);
+            Err("cannot find variable")
+          },
+        },
+      ExprF::Abs(param, body) => {
+        let param_ty = self.fresh();
+
+        let mut body_env = env.clone();
+        body_env.insert(param, param_ty);
+        let result_ty = try!(self.infer(&body_env, body));
+
+        let func_ty = self.arena.alloc(Ty::Func(param_ty, result_ty));
+        Ok(func_ty)
+      },
+      ExprF::App(callee, argument) => {
+        let callee_ty = try!(self.infer(env, callee));
+        let argument_ty = try!(self.infer(env, argument));
+
+        let result_ty = self.fresh();
+        let func_ty = self.arena.alloc(Ty::Func(argument_ty, result_ty));
+        try!(self.unify(callee_ty, func_ty));
+
+        Ok(result_ty)
+      },
     }
   }
 }
@@ -83,7 +137,7 @@ mod test {
     let arena = Arena::new();
     let mut check = Check::new(&arena);
 
-    let ty1 = arena.alloc(Ty::Bool);
+    let ty1 = &TY_BOOL;
     let ty2 = arena.alloc(Ty::Func(ty1, ty1));
     let ty3 = check.fresh();
     let ty4 = check.fresh();
@@ -94,7 +148,7 @@ mod test {
 
     assert_eq!(check.unify(ty2, ty2), Ok(()));
 
-    assert_eq!(check.unify(ty1, ty2), Err(()));
+    assert_eq!(check.unify(ty1, ty2), Err("cannot unify types"));
 
     assert_eq!(check.unify(ty3, ty3), Ok(()));
     assert_eq!(check.unify(ty3, ty4), Ok(()));
@@ -103,6 +157,28 @@ mod test {
     assert_eq!(check.unify(ty5, ty1), Ok(()));
     assert_eq!(check.unify(ty5, ty3), Ok(()));
     assert_eq!(check.unify(ty6, ty2), Ok(()));
-    assert_eq!(check.unify(ty5, ty6), Err(()));
+    assert_eq!(check.unify(ty5, ty6), Err("cannot unify types"));
+  }
+
+  #[test]
+  fn test_infer() {
+    let expr_arena = Arena::new();
+    let ty_arena = Arena::new();
+
+    let mut check = Check::new(&ty_arena);
+
+    let mut env = HashMap::new();
+    env.insert("vari", &TY_INT);
+    env.insert("even", ty_arena.alloc(Ty::Func(&TY_INT, &TY_BOOL)));
+
+    let expr = Expr(
+      (),
+      ExprF::App(
+        expr_arena.alloc(Expr((), ExprF::Var("even"))),
+        expr_arena.alloc(Expr((), ExprF::Var("vari"))),
+      ),
+    );
+    let ty = check.infer(&env, &expr);
+    assert_eq!(ty.map(|t| check.purge(t)), Ok(&TY_BOOL));
   }
 }
