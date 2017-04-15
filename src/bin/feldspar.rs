@@ -65,7 +65,10 @@ fn main_() -> Result<(), Error> {
 
   let type_arena = Arena::new();
   let mut check = Check::new(&type_arena);
-  try!(check.infer(&HashMap::new(), &expr));
+  let ty = try!(check.infer(&HashMap::new(), &expr));
+  let mut pretty = String::new();
+  ty.pretty(&|t| check.purge(t), &mut pretty).unwrap();
+  println!("{}", pretty);
 
   let mut codegen = Codegen::new();
   let mut insts = vec![];

@@ -38,8 +38,10 @@ pub struct Lexeme<'a, T>(pub T, pub LexemeF<'a>);
 pub enum LexemeF<'a> {
   Identifier(&'a str),
 
-  Fun,
   End,
+  False,
+  Fun,
+  True,
 
   Arrow,
   LeftParenthesis,
@@ -126,8 +128,10 @@ impl<'a> Iterator for Lexer<'a> {
       Some(c) if is_identifier_start(c) => {
         let name = self.take_chars_while(is_identifier_continue);
         Some(Ok(Lexeme(position, match name {
-          "fun" => LexemeF::Fun,
-          "end" => LexemeF::End,
+          "end"   => LexemeF::End,
+          "false" => LexemeF::False,
+          "fun"   => LexemeF::Fun,
+          "true"  => LexemeF::True,
           _ => LexemeF::Identifier(name),
         })))
       },

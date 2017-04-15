@@ -1,5 +1,5 @@
 use lex::{Lexeme, LexemeF, Lexer, Position};
-use syntax::{Expr, ExprF};
+use syntax::{Expr, ExprF, Literal};
 use typed_arena::Arena;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -59,6 +59,10 @@ pub fn read_expr_2<'a, 'b>(
       let expr = Expr(position, ExprF::Var(name));
       Ok(arena.alloc(expr))
     },
+    LexemeF::False =>
+      Ok(arena.alloc(Expr(position, ExprF::Lit(Literal::Bool(false))))),
+    LexemeF::True =>
+      Ok(arena.alloc(Expr(position, ExprF::Lit(Literal::Bool(true))))),
     LexemeF::Fun => {
       let name = try!(read_lexeme_if(lexer, |Lexeme(p, l)| match l {
         LexemeF::Identifier(name) => Ok(name),

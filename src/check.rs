@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use syntax::{Expr, ExprF};
 use typed_arena::Arena;
 
@@ -19,6 +20,32 @@ pub enum Ty<'ty> {
 pub static TY_BOOL: Ty<'static> = Ty::Bool;
 pub static TY_INT:  Ty<'static> = Ty::Int;
 pub static TY_STR:  Ty<'static> = Ty::Str;
+
+impl<'ty> Ty<'ty> {
+  pub fn pretty<Purge, W>(&'ty self, purge: &Purge, into: &mut W) -> fmt::Result
+    where
+      Purge: Fn(&'ty Ty<'ty>) -> &'ty Ty<'ty>,
+      W: fmt::Write {
+    match *purge(self) {
+      Ty::Deferred(ID(id)) =>
+        write!(into, "t{}", id),
+      Ty::Func(a, b) => {
+        try!(write!(into, "("));
+        try!(a.pretty(purge, into));
+        try!(write!(into, " -> "));
+        try!(b.pretty(purge, into));
+        try!(write!(into, ")"));
+        Ok(())
+      },
+      Ty::Bool =>
+        write!(into, "bool"),
+      Ty::Int =>
+        write!(into, "int"),
+      Ty::Str =>
+        write!(into, "str"),
+    }
+  }
+}
 
 pub struct Check<'ty> {
   arena: &'ty Arena<Ty<'ty>>,
