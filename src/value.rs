@@ -86,6 +86,7 @@ impl GC {
   }
 
   pub fn alloc<'a>(&'a self, ptr_count: usize, aux_count: usize) -> Ref<'a> {
+    println!("ALLOC {:?} {:?}", ptr_count, aux_count);
     unsafe {
       // FIXME: Tell GC to retain root.
       let lay = fs_alloc(ptr_count, aux_count);

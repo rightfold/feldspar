@@ -1,3 +1,7 @@
-fun x ->
-  x true false
+fun f ->
+  f true false
+end fun x ->
+  fun y ->
+    fun z -> z x y end
+  end
 end

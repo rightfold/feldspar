@@ -21,6 +21,7 @@ impl Codegen {
   ) -> usize {
     let mut insts = vec![];
     self.codegen_expr(env, body, &mut insts);
+    insts.push(Inst::Return);
     self.chunks.push(Chunk{
       insts: insts,
       locals: 1 + captures,
