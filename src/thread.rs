@@ -61,7 +61,7 @@ impl<'chunk, 'gc, GetChunk> Thread<'chunk, 'gc, GetChunk>
           pcounter: 0,
           locals: {
             let mut locals_vec = vec![];
-            locals_vec.resize(chunk.locals + chunk.captures, None);
+            locals_vec.resize(chunk.locals, None);
             locals_vec[0] = Some(argument);
             for offset in 0 .. chunk.captures {
               locals_vec[offset + 1] = callee.get_ptr(offset);
@@ -145,7 +145,7 @@ mod test {
         Inst::New(2, 0),
         Inst::Return,
       ],
-      locals: 1,
+      locals: 2,
       captures: 1,
     };
     let gc = GC::new();
