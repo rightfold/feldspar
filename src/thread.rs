@@ -12,7 +12,7 @@ pub struct Thread<'chunk, 'gc, GetChunk> {
 struct StackFrame<'chunk, 'gc> {
   bytecode: &'chunk [Inst],
   pcounter: usize,
-  locals: Vec<Option<Ref<'gc>>>,
+  locals: Vec<Ref<'gc>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -34,7 +34,7 @@ impl<'chunk, 'gc, GetChunk> Thread<'chunk, 'gc, GetChunk>
       pcounter: 0,
       locals: {
         let mut locals_vec = vec![];
-        locals_vec.resize(locals, None);
+        locals_vec.resize(locals, gc.alloc(0, 0));
         locals_vec
       },
     };
@@ -80,10 +80,10 @@ impl<'chunk, 'gc, GetChunk> Thread<'chunk, 'gc, GetChunk>
           pcounter: 0,
           locals: {
             let mut locals_vec = vec![];
-            locals_vec.resize(chunk.locals, None);
-            locals_vec[0] = Some(argument);
+            locals_vec.resize(chunk.locals, self.gc.alloc(0, 0));
+            locals_vec[0] = argument;
             for offset in 0 .. chunk.captures {
-              locals_vec[offset + 1] = callee.get_ptr(offset);
+              locals_vec[offset + 1] = callee.get_ptr(offset).unwrap();
             }
             locals_vec
           },

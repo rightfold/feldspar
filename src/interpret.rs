@@ -2,8 +2,6 @@ use bytecode::{Chunk, Inst};
 use std::mem;
 use value::{GC, Ref};
 
-// TODO: Remove Option wrapper around locals.
-
 pub struct StateDiff<'gc> {
   pub jump: Jump,
   pub return_: bool,
@@ -19,7 +17,7 @@ pub fn interpret<'gc, 'chunk, GetChunk>(
   gc: &'gc GC,
   get_chunk: &GetChunk,
   stack: &mut Vec<Ref<'gc>>,
-  locals: &mut [Option<Ref<'gc>>],
+  locals: &mut [Ref<'gc>],
   inst: &Inst,
 ) -> StateDiff<'gc>
   where GetChunk: Fn(usize) -> &'chunk Chunk {
@@ -43,7 +41,7 @@ pub fn interpret<'gc, 'chunk, GetChunk>(
     },
 
     Inst::GetLocal(offset) => {
-      let value = locals[offset].clone().unwrap();
+      let value = locals[offset].clone();
       stack.push(value);
     },
 
