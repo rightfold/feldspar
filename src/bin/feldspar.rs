@@ -11,45 +11,35 @@ use feldspar::thread::Thread;
 use feldspar::value::GC;
 use std::collections::HashMap;
 use std::env;
+use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::io;
 use std::process;
 use typed_arena::Arena;
 
-#[derive(Debug)]
-enum Error {
-  CheckError(check::Error),
-  IOError(io::Error),
-  ParseError(parse::Error),
-}
+struct AnyError(String);
 
-impl From<check::Error> for Error {
-  fn from(other: check::Error) -> Self {
-    Error::CheckError(other)
-  }
-}
-
-impl From<io::Error> for Error {
+impl From<io::Error> for AnyError {
   fn from(other: io::Error) -> Self {
-    Error::IOError(other)
+    AnyError(other.description().to_string())
   }
 }
 
-impl From<parse::Error> for Error {
+impl From<parse::Error> for AnyError {
   fn from(other: parse::Error) -> Self {
-    Error::ParseError(other)
+    AnyError(other.1.to_string())
   }
 }
 
 fn main() {
   if let Err(err) = main_() {
-    let _ = writeln!(io::stderr(), "feldspar: {:?}", err);
+    let _ = writeln!(io::stderr(), "feldspar: {}", err.0);
     process::exit(1);
   }
 }
 
-fn main_() -> Result<(), Error> {
+fn main_() -> Result<(), AnyError>{
   let args: Vec<_> = env::args().collect();
   if args.len() < 2 {
     try!(usage(&mut io::stderr()));
@@ -66,10 +56,19 @@ fn main_() -> Result<(), Error> {
 
   let type_arena = Arena::new();
   let mut check = Check::new(&type_arena);
-  let ty = try!(check.infer(&HashMap::new(), &expr));
-  let mut pretty = String::new();
-  ty.pretty(&|t| check.purge(t), &mut pretty).unwrap();
-  println!("{}", pretty);
+  let ty = try!(check.infer(&HashMap::new(), &expr).map_err(|err| {
+    AnyError(match err {
+      check::Error::Unify(a, b) =>
+        "cannot unify type\n  ".to_string() +
+        &a.pretty_string(&|t| check.purge(t)) +
+        "\nwith type\n  " +
+        &b.pretty_string(&|t| check.purge(t)),
+      check::Error::Var(name) =>
+        "cannot find variable\n  ".to_string() +
+        name,
+    })
+  }));
+  println!("{}", ty.pretty_string(&|t| check.purge(t)));
 
   let mut codegen = Codegen::new();
   let mut insts = vec![];

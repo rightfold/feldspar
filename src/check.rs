@@ -3,7 +3,11 @@ use std::fmt;
 use syntax::{Expr, ExprF, Literal};
 use typed_arena::Arena;
 
-pub type Error = &'static str;
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Error<'str, 'ty> {
+  Unify(&'ty Ty<'ty>, &'ty Ty<'ty>),
+  Var(&'str str),
+}
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct ID(usize);
@@ -45,6 +49,13 @@ impl<'ty> Ty<'ty> {
         write!(into, "str"),
     }
   }
+
+  pub fn pretty_string<Purge>(&'ty self, purge: &Purge) -> String
+    where Purge: Fn(&'ty Ty<'ty>) -> &'ty Ty<'ty> {
+    let mut pretty = String::new();
+    self.pretty(purge, &mut pretty).unwrap();
+    pretty
+  }
 }
 
 pub struct Check<'ty> {
@@ -83,7 +94,8 @@ impl<'ty> Check<'ty> {
     }
   }
 
-  pub fn unify(&mut self, ty: &'ty Ty<'ty>, uy: &'ty Ty<'ty>) -> Result<(), Error> {
+  pub fn unify<'str>(&mut self, ty: &'ty Ty<'ty>, uy: &'ty Ty<'ty>)
+    -> Result<(), Error<'str, 'ty>> {
     match (self.purge(ty), self.purge(uy)) {
       (&Ty::Deferred(ty_id), &Ty::Deferred(uy_id))
         if ty_id == uy_id =>
@@ -107,17 +119,17 @@ impl<'ty> Check<'ty> {
         Ok(()),
       (&Ty::Str, &Ty::Str) =>
         Ok(()),
-      (_, _) => {
-        Err("cannot unify types")
+      (a, b) => {
+        Err(Error::Unify(a, b))
       },
     }
   }
 
-  pub fn infer<T>(
+  pub fn infer<'str, 'expr, T>(
     &mut self,
     env: &HashMap<&str, &'ty Ty<'ty>>,
-    expr: &Expr<T>,
-  ) -> Result<&'ty Ty<'ty>, Error> {
+    expr: &Expr<'str, 'expr, T>,
+  ) -> Result<&'ty Ty<'ty>, Error<'str, 'ty>> {
     match expr.1 {
       ExprF::Lit(Literal::Bool(_)) =>
         Ok(&TY_BOOL),
@@ -128,9 +140,7 @@ impl<'ty> Check<'ty> {
       ExprF::Var(name) =>
         match env.get(&name) {
           Some(ty) => Ok(ty),
-          None => {
-            Err("cannot find variable")
-          },
+          None => Err(Error::Var(name)),
         },
       ExprF::Abs(param, body) => {
         let param_ty = self.fresh();
@@ -176,7 +186,7 @@ mod test {
 
     assert_eq!(check.unify(ty2, ty2), Ok(()));
 
-    assert_eq!(check.unify(ty1, ty2), Err("cannot unify types"));
+    assert_eq!(check.unify(ty1, ty2), Err(Error::Unify(ty1, ty2)));
 
     assert_eq!(check.unify(ty3, ty3), Ok(()));
     assert_eq!(check.unify(ty3, ty4), Ok(()));
@@ -185,7 +195,7 @@ mod test {
     assert_eq!(check.unify(ty5, ty1), Ok(()));
     assert_eq!(check.unify(ty5, ty3), Ok(()));
     assert_eq!(check.unify(ty6, ty2), Ok(()));
-    assert_eq!(check.unify(ty5, ty6), Err("cannot unify types"));
+    assert_eq!(check.unify(ty5, ty6), Err(Error::Unify(ty1, ty2)));
   }
 
   #[test]

@@ -3,7 +3,7 @@ use syntax::{Expr, ExprF, Literal};
 use typed_arena::Arena;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Error(Position, &'static str);
+pub struct Error(pub Position, pub &'static str);
 
 fn read_lexeme<'a>(lexer: &mut Lexer<'a>)
   -> Result<Lexeme<'a, Position>, Error> {
