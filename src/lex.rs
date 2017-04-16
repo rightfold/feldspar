@@ -44,6 +44,7 @@ pub enum LexemeF<'a> {
   True,
 
   Arrow,
+  Comma,
   LeftParenthesis,
   RightParenthesis,
   LeftBrace,
@@ -126,6 +127,10 @@ impl<'a> Iterator for Lexer<'a> {
       Some('}') => {
         self.take_char();
         Some(Ok(Lexeme(position, LexemeF::RightBrace)))
+      },
+      Some(',') => {
+        self.take_char();
+        Some(Ok(Lexeme(position, LexemeF::Comma)))
       },
       Some('-') => {
         self.take_char();
@@ -251,13 +256,14 @@ mod test {
   #[test]
   fn test_punctuation() {
     assert_eq!(
-      Lexer::new("(){}->").collect::<Vec<_>>(),
+      Lexer::new("(){},->").collect::<Vec<_>>(),
       vec![
         Ok(Lexeme(Position::new(0, 1, 1), LexemeF::LeftParenthesis)),
         Ok(Lexeme(Position::new(1, 1, 2), LexemeF::RightParenthesis)),
         Ok(Lexeme(Position::new(2, 1, 3), LexemeF::LeftBrace)),
         Ok(Lexeme(Position::new(3, 1, 4), LexemeF::RightBrace)),
-        Ok(Lexeme(Position::new(4, 1, 5), LexemeF::Arrow)),
+        Ok(Lexeme(Position::new(4, 1, 5), LexemeF::Comma)),
+        Ok(Lexeme(Position::new(5, 1, 6), LexemeF::Arrow)),
       ]
     );
   }
