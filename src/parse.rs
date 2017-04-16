@@ -92,6 +92,32 @@ pub fn read_expr_2<'a, 'b>(
       }));
       expr
     },
+    LexemeF::LeftBrace => {
+      let mut elems = vec![];
+      loop {
+        let lexer_clone = lexer.clone();
+        match read_expr(arena, lexer) {
+          Ok(expr) => elems.push(expr),
+          Err(_) => {
+            lexer.clone_from(&lexer_clone);
+            break
+          },
+        }
+        match read_lexeme(lexer) {
+          Ok(Lexeme(_, LexemeF::Comma)) => (),
+          _ => {
+            lexer.clone_from(&lexer_clone);
+            break;
+          },
+        }
+      }
+      try!(read_lexeme_if(lexer, |Lexeme(p, l)| match l {
+        LexemeF::RightBrace => Ok(()),
+        _ => Err(Error(p, "expected `}`")),
+      }));
+      let expr = Expr(position, ExprF::Tup(elems));
+      Ok(arena.alloc(expr))
+    },
     LexemeF::Str(value) => {
       let expr = Expr(position, ExprF::Lit(Literal::Str(value)));
       Ok(arena.alloc(expr))
@@ -106,18 +132,18 @@ mod test {
 
   #[test]
   fn test_read_var_expr() {
-    let mut arena = Arena::new();
+    let arena = Arena::new();
     assert_eq!(
-      read_expr(&mut arena, &mut Lexer::new("foo")),
+      read_expr(&arena, &mut Lexer::new("foo")),
       Ok(&Expr(Position::new(0, 1, 1), ExprF::Var("foo")))
     );
   }
 
   #[test]
   fn test_read_abs_expr() {
-    let mut arena = Arena::new();
+    let arena = Arena::new();
     assert_eq!(
-      read_expr(&mut arena, &mut Lexer::new("fun foo -> bar end")),
+      read_expr(&arena, &mut Lexer::new("fun foo -> bar end")),
       Ok(&Expr(
         Position::new(0, 1, 1),
         ExprF::Abs(
@@ -133,9 +159,9 @@ mod test {
 
   #[test]
   fn test_read_app_expr() {
-    let mut arena = Arena::new();
+    let arena = Arena::new();
     assert_eq!(
-      read_expr(&mut arena, &mut Lexer::new("foo bar baz")),
+      read_expr(&arena, &mut Lexer::new("foo bar baz")),
       Ok(&Expr(
         Position::new(0, 1, 1),
         ExprF::App(
@@ -162,10 +188,47 @@ mod test {
   }
 
   #[test]
-  fn test_read_paren_expr() {
-    let mut arena = Arena::new();
+  fn test_read_tup_expr() {
+    let arena = Arena::new();
     assert_eq!(
-      read_expr(&mut arena, &mut Lexer::new("(foo)")),
+      read_expr(&arena, &mut Lexer::new("{}")),
+      Ok(&Expr(Position::new(0, 1, 1), ExprF::Tup(vec![])))
+    );
+    assert_eq!(
+      read_expr(&arena, &mut Lexer::new("{x,}")),
+      Ok(&Expr(
+        Position::new(0, 1, 1),
+        ExprF::Tup(vec![
+          &Expr(
+            Position::new(1, 1, 2),
+            ExprF::Var("x"),
+          ),
+        ]),
+      ))
+    );
+    assert_eq!(
+      read_expr(&arena, &mut Lexer::new("{x,y,}")),
+      Ok(&Expr(
+        Position::new(0, 1, 1),
+        ExprF::Tup(vec![
+          &Expr(
+            Position::new(1, 1, 2),
+            ExprF::Var("x"),
+          ),
+          &Expr(
+            Position::new(3, 1, 4),
+            ExprF::Var("y"),
+          ),
+        ]),
+      ))
+    );
+  }
+
+  #[test]
+  fn test_read_paren_expr() {
+    let arena = Arena::new();
+    assert_eq!(
+      read_expr(&arena, &mut Lexer::new("(foo)")),
       Ok(&Expr(Position::new(1, 1, 2), ExprF::Var("foo")))
     );
   }

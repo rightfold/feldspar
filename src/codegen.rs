@@ -111,6 +111,7 @@ impl<'str> Codegen<'str> {
         self.codegen_expr(env, argument, insts);
         insts.push(Inst::Call);
       },
+      ExprF::Tup(_) => panic!("NYI"),
     }
   }
 

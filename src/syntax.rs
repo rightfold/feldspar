@@ -10,6 +10,7 @@ pub enum ExprF<'a, T> {
   Var(&'a str),
   Abs(&'a str, T),
   App(T, T),
+  Tup(Vec<T>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

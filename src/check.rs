@@ -168,6 +168,7 @@ impl<'ty> Check<'ty> {
 
         Ok(result_ty)
       },
+      ExprF::Tup(_) => panic!("NYI"),
     }
   }
 }
