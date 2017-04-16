@@ -34,13 +34,19 @@ impl From<parse::Error> for AnyError {
 }
 
 fn main() {
-  if let Err(err) = main_() {
+  unsafe {
+    main_();
+  }
+}
+
+unsafe fn main_() {
+  if let Err(err) = main__() {
     let _ = writeln!(io::stderr(), "feldspar: {}", err.0);
     process::exit(1);
   }
 }
 
-fn main_() -> Result<(), AnyError>{
+unsafe fn main__() -> Result<(), AnyError>{
   let args: Vec<_> = env::args().collect();
   if args.len() < 2 {
     try!(usage(&mut io::stderr()));

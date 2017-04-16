@@ -18,11 +18,11 @@ pub struct Ref<'a> {
 }
 
 impl<'a> Ref<'a> {
-  pub fn get_ptr(&self, offset: usize) -> Option<Ref<'a>> {
+  pub unsafe fn get_ptr(&self, offset: usize) -> Option<Ref<'a>> {
     if offset >= self.ptr_count() {
       None
     } else {
-      let lay = unsafe { fs_get_ptr(self.lay, offset) };
+      let lay = fs_get_ptr(self.lay, offset);
       if lay.is_null() {
         None
       } else {
@@ -32,17 +32,15 @@ impl<'a> Ref<'a> {
     }
   }
 
-  pub fn set_ptr(&self, offset: usize, ptr: &Ref<'a>) {
+  pub unsafe fn set_ptr(&self, offset: usize, ptr: &Ref<'a>) {
     // FIXME: Check that GCs are the same.
     if offset < self.ptr_count() {
-      unsafe { fs_set_ptr(self.lay, offset, ptr.lay) };
+      fs_set_ptr(self.lay, offset, ptr.lay);
     }
   }
 
-  pub fn aux(&self) -> &mut [u8] {
-    unsafe {
-      slice::from_raw_parts_mut(fs_aux(self.lay), self.aux_count())
-    }
+  pub unsafe fn aux(&self) -> &mut [u8] {
+    slice::from_raw_parts_mut(fs_aux(self.lay), self.aux_count())
   }
 
   unsafe fn aux_any<T>(&self) -> &mut T {
@@ -53,12 +51,12 @@ impl<'a> Ref<'a> {
     mem::transmute::<*const u8, &mut T>(aux.as_ptr())
   }
 
-  pub fn aux_i32(&self) -> &mut i32 {
-    unsafe { self.aux_any() }
+  pub unsafe fn aux_i32(&self) -> &mut i32 {
+    self.aux_any()
   }
 
-  pub fn aux_usize(&self) -> &mut usize {
-    unsafe { self.aux_any() }
+  pub unsafe fn aux_usize(&self) -> &mut usize {
+    self.aux_any()
   }
 
   pub fn ptr_count(&self) -> usize {
@@ -113,7 +111,7 @@ mod test {
         assert_eq!(r.ptr_count(), ptr_count);
         assert_eq!(r.aux_count(), aux_count);
         for offset in 0 .. 10 {
-          assert!(r.get_ptr(offset).is_none());
+          assert!(unsafe { r.get_ptr(offset) }.is_none());
         }
       }
     }

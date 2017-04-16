@@ -51,7 +51,7 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
     }
   }
 
-  pub fn resume(&mut self) -> Status {
+  pub unsafe fn resume(&mut self) -> Status {
     loop {
       let state_diff = match self.call_stack.last_mut() {
         None => return Status::Finished,
@@ -105,62 +105,66 @@ mod test {
 
   #[test]
   fn test_call() {
-    let chunk = Chunk{
-      insts: vec![
-        Inst::GetLocal(1),
-        Inst::GetLocal(0),
-        Inst::New(2, 0),
+    unsafe {
+      let chunk = Chunk{
+        insts: vec![
+          Inst::GetLocal(1),
+          Inst::GetLocal(0),
+          Inst::New(2, 0),
+          Inst::Return,
+        ],
+        locals: 2,
+        captures: 1,
+      };
+      let gc = GC::new();
+      let bytecode = [
+        Inst::NewI32(1),
+        Inst::NewFunc(0),
+        Inst::NewI32(0),
+        Inst::Call,
         Inst::Return,
-      ],
-      locals: 2,
-      captures: 1,
-    };
-    let gc = GC::new();
-    let bytecode = [
-      Inst::NewI32(1),
-      Inst::NewFunc(0),
-      Inst::NewI32(0),
-      Inst::Call,
-      Inst::Return,
-    ];
-    let get_str = |_| panic!();
-    let get_chunk = |_| &chunk;
-    let mut thread = Thread::new(&gc, get_str, get_chunk, &bytecode, 0);
-    assert_eq!(thread.resume(), Status::Finished);
-    assert_eq!(thread.call_stack.len(), 0);
-    assert_eq!(thread.eval_stack.len(), 1);
-    assert_eq!(thread.eval_stack[0].ptr_count(), 2);
-    assert_eq!(thread.eval_stack[0].aux_count(), 0);
-    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().ptr_count(), 0);
-    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 4);
-    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), &1);
-    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().ptr_count(), 0);
-    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 4);
-    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), &0);
+      ];
+      let get_str = |_| panic!();
+      let get_chunk = |_| &chunk;
+      let mut thread = Thread::new(&gc, get_str, get_chunk, &bytecode, 0);
+      assert_eq!(thread.resume(), Status::Finished);
+      assert_eq!(thread.call_stack.len(), 0);
+      assert_eq!(thread.eval_stack.len(), 1);
+      assert_eq!(thread.eval_stack[0].ptr_count(), 2);
+      assert_eq!(thread.eval_stack[0].aux_count(), 0);
+      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().ptr_count(), 0);
+      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 4);
+      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), &1);
+      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().ptr_count(), 0);
+      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 4);
+      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), &0);
+    }
   }
 
   #[test]
   fn test_new() {
-    let gc = GC::new();
-    let bytecode = [
-      Inst::NewI32(1),
-      Inst::NewI32(0),
-      Inst::New(2, 0),
-      Inst::Return,
-    ];
-    let get_str = |_| panic!();
-    let get_chunk = |_| panic!();
-    let mut thread = Thread::new(&gc, get_str, get_chunk, &bytecode, 0);
-    assert_eq!(thread.resume(), Status::Finished);
-    assert_eq!(thread.call_stack.len(), 0);
-    assert_eq!(thread.eval_stack.len(), 1);
-    assert_eq!(thread.eval_stack[0].ptr_count(), 2);
-    assert_eq!(thread.eval_stack[0].aux_count(), 0);
-    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().ptr_count(), 0);
-    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 4);
-    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), &1);
-    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().ptr_count(), 0);
-    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 4);
-    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), &0);
+    unsafe {
+      let gc = GC::new();
+      let bytecode = [
+        Inst::NewI32(1),
+        Inst::NewI32(0),
+        Inst::New(2, 0),
+        Inst::Return,
+      ];
+      let get_str = |_| panic!();
+      let get_chunk = |_| panic!();
+      let mut thread = Thread::new(&gc, get_str, get_chunk, &bytecode, 0);
+      assert_eq!(thread.resume(), Status::Finished);
+      assert_eq!(thread.call_stack.len(), 0);
+      assert_eq!(thread.eval_stack.len(), 1);
+      assert_eq!(thread.eval_stack[0].ptr_count(), 2);
+      assert_eq!(thread.eval_stack[0].aux_count(), 0);
+      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().ptr_count(), 0);
+      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 4);
+      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), &1);
+      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().ptr_count(), 0);
+      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 4);
+      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), &0);
+    }
   }
 }
