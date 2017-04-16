@@ -1,4 +1,5 @@
 use bytecode::{Chunk, Inst};
+use libc;
 use std::mem;
 use value::{GC, Ref};
 
@@ -77,6 +78,23 @@ pub fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
       }
       *new.aux_usize() = chunk_id;
       stack.push(new);
+    },
+
+    Inst::Write => {
+      let bytes = stack.pop().unwrap();
+      let handle = stack.pop().unwrap();
+
+      let status = unsafe {
+        libc::write(
+          *handle.aux_i32(),
+          mem::transmute(bytes.aux().as_ptr()),
+          bytes.aux().len(),
+        ) as i32
+      };
+
+      let result = gc.alloc(0, 4);
+      *result.aux_i32() = status;
+      stack.push(result);
     },
   }
   state_diff

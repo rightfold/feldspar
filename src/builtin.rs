@@ -10,6 +10,6 @@ pub fn env<'ty>(arena: &'ty Arena<Ty<'ty>>)
   let mut map = HashMap::new();
   map.insert("stdout#", &TY_INT);
   map.insert("to_utf8#", Func(&TY_STR, &TY_BYTES));
-  map.insert("write#", Func(&TY_INT, Func(&TY_BYTES, &TY_INT))); // FIXME: Return io ()
+  map.insert("write#", Func(&TY_INT, Func(&TY_BYTES, &TY_INT))); // FIXME: Return io int.
   map
 }

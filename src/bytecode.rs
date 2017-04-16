@@ -20,4 +20,6 @@ pub enum Inst {
   NewI32(i32),
   NewStr(usize),
   NewFunc(usize),
+
+  Write,
 }

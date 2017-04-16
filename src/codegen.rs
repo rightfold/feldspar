@@ -23,6 +23,20 @@ impl<'str> Codegen<'str> {
     &self.strs
   }
 
+  fn codegen_func_bytecode(
+    &mut self,
+    locals: usize,
+    captures: usize,
+    insts: Vec<Inst>,
+  ) -> usize {
+    self.chunks.push(Chunk{
+      insts: insts,
+      locals: locals,
+      captures: captures,
+    });
+    self.chunks.len() - 1
+  }
+
   pub fn codegen_func<'expr, T>(
     &mut self,
     env: &HashMap<&str, usize>,
@@ -51,10 +65,28 @@ impl<'str> Codegen<'str> {
         self.codegen_literal(lit, insts),
       ExprF::Var("stdout#") =>
         insts.push(Inst::NewI32(1)),
-      ExprF::Var("to_utf8#") =>
-        insts.push(Inst::NewI32(1)),
-      ExprF::Var("write#") =>
-        insts.push(Inst::NewI32(1)),
+      ExprF::Var("to_utf8#") => {
+        let chunk_id = self.codegen_func_bytecode(1, 0, vec![
+          Inst::GetLocal(0),
+          Inst::Return,
+        ]);
+        insts.push(Inst::NewFunc(chunk_id));
+      },
+      ExprF::Var("write#") => {
+        // FIXME: Return I/O action.
+        let inner_chunk_id = self.codegen_func_bytecode(2, 1, vec![
+          Inst::GetLocal(1),
+          Inst::GetLocal(0),
+          Inst::Write,
+          Inst::Return,
+        ]);
+        let outer_chunk_id = self.codegen_func_bytecode(1, 0, vec![
+          Inst::GetLocal(0),
+          Inst::NewFunc(inner_chunk_id),
+          Inst::Return,
+        ]);
+        insts.push(Inst::NewFunc(outer_chunk_id));
+      },
       ExprF::Var(name) => {
         let offset = env[name];
         insts.push(Inst::GetLocal(offset));
