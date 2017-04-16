@@ -19,11 +19,13 @@ pub enum Ty<'ty> {
   Bool,
   Int,
   Str,
+  Bytes,
 }
 
-pub static TY_BOOL: Ty<'static> = Ty::Bool;
-pub static TY_INT:  Ty<'static> = Ty::Int;
-pub static TY_STR:  Ty<'static> = Ty::Str;
+pub static TY_BOOL:  Ty<'static> = Ty::Bool;
+pub static TY_INT:   Ty<'static> = Ty::Int;
+pub static TY_STR:   Ty<'static> = Ty::Str;
+pub static TY_BYTES: Ty<'static> = Ty::Bytes;
 
 impl<'ty> Ty<'ty> {
   pub fn pretty<Purge, W>(&'ty self, purge: &Purge, into: &mut W) -> fmt::Result
@@ -47,6 +49,8 @@ impl<'ty> Ty<'ty> {
         write!(into, "int"),
       Ty::Str =>
         write!(into, "str"),
+      Ty::Bytes =>
+        write!(into, "bytes"),
     }
   }
 
@@ -118,6 +122,8 @@ impl<'ty> Check<'ty> {
       (&Ty::Int, &Ty::Int) =>
         Ok(()),
       (&Ty::Str, &Ty::Str) =>
+        Ok(()),
+      (&Ty::Bytes, &Ty::Bytes) =>
         Ok(()),
       (a, b) => {
         Err(Error::Unify(a, b))
