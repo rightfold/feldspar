@@ -79,6 +79,7 @@ fn main_() -> Result<(), AnyError>{
   let gc = GC::new();
   let mut thread = Thread::new(
     &gc,
+    |id| &codegen.strs()[&id],
     |id| &codegen.chunks[id],
     &insts,
     0,

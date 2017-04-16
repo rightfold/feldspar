@@ -3,14 +3,24 @@ use std::collections::HashMap;
 use syntax::{Expr, ExprF, Literal};
 
 pub struct Codegen<'str> {
-  pub chunks: Vec<Chunk<'str>>,
+  next_str_id: usize,
+  strs: HashMap<usize, &'str str>,
+
+  pub chunks: Vec<Chunk>,
 }
 
 impl<'str> Codegen<'str> {
   pub fn new() -> Self {
     Codegen{
+      next_str_id: 0,
+      strs: HashMap::new(),
+
       chunks: vec![],
     }
+  }
+
+  pub fn strs(&self) -> &HashMap<usize, &'str str> {
+    &self.strs
   }
 
   pub fn codegen_func<'expr, T>(
@@ -34,7 +44,7 @@ impl<'str> Codegen<'str> {
     &mut self,
     env: &HashMap<&str, usize>,
     expr: &Expr<'str, 'expr, T>,
-    insts: &mut Vec<Inst<'str>>,
+    insts: &mut Vec<Inst>,
   ) {
     match expr.1 {
       ExprF::Lit(ref lit) =>
@@ -68,15 +78,19 @@ impl<'str> Codegen<'str> {
   }
 
   pub fn codegen_literal(
-    &self,
+    &mut self,
     lit: &Literal<'str>,
-    insts: &mut Vec<Inst<'str>>,
+    insts: &mut Vec<Inst>,
   ) {
     match *lit {
       Literal::Bool(value) =>
         insts.push(Inst::NewI32(value as i32)),
-      Literal::Str(value) =>
-        insts.push(Inst::NewStr(value)),
+      Literal::Str(value) => {
+        let id = self.next_str_id;
+        self.next_str_id += 1;
+        self.strs.insert(id, value);
+        insts.push(Inst::NewStr(id));
+      },
       _ => panic!("codegen_literal: NYI"),
     }
   }

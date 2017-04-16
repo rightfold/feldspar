@@ -2,15 +2,16 @@ use bytecode::{Chunk, Inst};
 use interpret::{Jump, interpret};
 use value::{GC, Ref};
 
-pub struct Thread<'str, 'chunk, 'gc, GetChunk> where 'str: 'chunk {
+pub struct Thread<'chunk, 'gc, GetStr, GetChunk> {
   gc: &'gc GC,
+  get_str: GetStr,
   get_chunk: GetChunk,
-  call_stack: Vec<StackFrame<'str, 'chunk, 'gc>>,
+  call_stack: Vec<StackFrame<'chunk, 'gc>>,
   eval_stack: Vec<Ref<'gc>>,
 }
 
-struct StackFrame<'str, 'chunk, 'gc> where 'str: 'chunk {
-  bytecode: &'chunk [Inst<'str>],
+struct StackFrame<'chunk, 'gc> {
+  bytecode: &'chunk [Inst],
   pcounter: usize,
   locals: Vec<Ref<'gc>>,
 }
@@ -21,12 +22,15 @@ pub enum Status {
   Finished,
 }
 
-impl<'str, 'chunk, 'gc, GetChunk> Thread<'str, 'chunk, 'gc, GetChunk>
-  where GetChunk: Fn(usize) -> &'chunk Chunk<'str> {
+impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
+  where
+    GetStr: Fn(usize) -> &'str str,
+    GetChunk: Fn(usize) -> &'chunk Chunk {
   pub fn new(
     gc: &'gc GC,
+    get_str: GetStr,
     get_chunk: GetChunk,
-    bytecode: &'chunk [Inst<'str>],
+    bytecode: &'chunk [Inst],
     locals: usize,
   ) -> Self {
     let stack_frame = StackFrame{
@@ -40,6 +44,7 @@ impl<'str, 'chunk, 'gc, GetChunk> Thread<'str, 'chunk, 'gc, GetChunk>
     };
     Thread{
       gc: gc,
+      get_str: get_str,
       get_chunk: get_chunk,
       call_stack: vec![stack_frame],
       eval_stack: vec![],
@@ -53,6 +58,7 @@ impl<'str, 'chunk, 'gc, GetChunk> Thread<'str, 'chunk, 'gc, GetChunk>
         Some(stack_frame) => {
           let state_diff = interpret(
             self.gc,
+            &self.get_str,
             &self.get_chunk,
             &mut self.eval_stack,
             &mut stack_frame.locals,
@@ -117,8 +123,9 @@ mod test {
       Inst::Call,
       Inst::Return,
     ];
+    let get_str = |_| panic!();
     let get_chunk = |_| &chunk;
-    let mut thread = Thread::new(&gc, get_chunk, &bytecode, 0);
+    let mut thread = Thread::new(&gc, get_str, get_chunk, &bytecode, 0);
     assert_eq!(thread.resume(), Status::Finished);
     assert_eq!(thread.call_stack.len(), 0);
     assert_eq!(thread.eval_stack.len(), 1);
@@ -141,8 +148,9 @@ mod test {
       Inst::New(2, 0),
       Inst::Return,
     ];
+    let get_str = |_| panic!();
     let get_chunk = |_| panic!();
-    let mut thread = Thread::new(&gc, get_chunk, &bytecode, 0);
+    let mut thread = Thread::new(&gc, get_str, get_chunk, &bytecode, 0);
     assert_eq!(thread.resume(), Status::Finished);
     assert_eq!(thread.call_stack.len(), 0);
     assert_eq!(thread.eval_stack.len(), 1);
