@@ -1,1 +1,3 @@
-{false, "",}
+fun x ->
+  write# stdout# (to_utf8# "")
+end {false, "",}
