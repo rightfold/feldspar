@@ -135,6 +135,16 @@ impl<'ty> Check<'ty> {
         Ok(()),
       (&Ty::Bytes, &Ty::Bytes) =>
         Ok(()),
+      (&Ty::Tuple(ref elem_tys), &Ty::Tuple(ref elem_uys)) => {
+        if elem_tys.len() != elem_uys.len() {
+          Err(Error::Unify(&TY_BOOL, &TY_INT)) // FIXME: Tuple types.
+        } else {
+          for (ty, uy) in elem_tys.iter().zip(elem_uys.iter()) {
+            try!(self.unify(ty, uy));
+          }
+          Ok(())
+        }
+      },
       (a, b) => {
         Err(Error::Unify(a, b))
       },
