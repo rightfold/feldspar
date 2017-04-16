@@ -169,6 +169,7 @@ fn is_identifier_continue(char: char) -> bool {
   is_identifier_start(char)
   || char.is_numeric()
   || char == '\''
+  || char == '#'
 }
 
 #[cfg(test)]
