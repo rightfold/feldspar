@@ -88,7 +88,7 @@ pub fn read_expr_2<'a, 'b>(
       let expr = read_expr(arena, lexer);
       try!(read_lexeme_if(lexer, |Lexeme(p, l)| match l {
         LexemeF::RightParenthesis => Ok(()),
-        _ => Err(Error(p, "expected right parenthesis")),
+        _ => Err(Error(p, "expected `)`")),
       }));
       expr
     },
