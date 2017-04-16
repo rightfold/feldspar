@@ -63,16 +63,16 @@ impl<'str> Codegen<'str> {
     match expr.1 {
       ExprF::Lit(ref lit) =>
         self.codegen_literal(lit, insts),
-      ExprF::Var("stdout#") =>
+      ExprF::Var("stdout#") => // TODO: Move to feldspar::builtin
         insts.push(Inst::NewI32(1)),
-      ExprF::Var("to_utf8#") => {
+      ExprF::Var("to_utf8#") => { // TODO: Move to feldspar::builtin
         let chunk_id = self.codegen_func_bytecode(1, 0, vec![
           Inst::GetLocal(0),
           Inst::Return,
         ]);
         insts.push(Inst::NewFunc(chunk_id));
       },
-      ExprF::Var("write#") => {
+      ExprF::Var("write#") => { // TODO: Move to feldspar::builtin
         let action_chunk_id = self.codegen_func_bytecode(3, 2, vec![
           Inst::GetLocal(1), // handle
           Inst::GetLocal(2), // bytes
