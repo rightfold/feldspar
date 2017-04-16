@@ -84,6 +84,14 @@ pub fn read_expr_2<'a, 'b>(
       let expr = Expr(position, ExprF::Abs(name, body));
       Ok(arena.alloc(expr))
     },
+    LexemeF::LeftParenthesis => {
+      let expr = read_expr(arena, lexer);
+      try!(read_lexeme_if(lexer, |Lexeme(p, l)| match l {
+        LexemeF::RightParenthesis => Ok(()),
+        _ => Err(Error(p, "expected right parenthesis")),
+      }));
+      expr
+    },
     LexemeF::Str(value) => {
       let expr = Expr(position, ExprF::Lit(Literal::Str(value)));
       Ok(arena.alloc(expr))
@@ -150,6 +158,15 @@ mod test {
           ),
         ),
       ))
+    );
+  }
+
+  #[test]
+  fn test_read_paren_expr() {
+    let mut arena = Arena::new();
+    assert_eq!(
+      read_expr(&mut arena, &mut Lexer::new("(foo)")),
+      Ok(&Expr(Position::new(1, 1, 2), ExprF::Var("foo")))
     );
   }
 }

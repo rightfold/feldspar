@@ -1,1 +1,1 @@
-println "Hello, world!"
+print# (to_utf8# "Hello, world!")
