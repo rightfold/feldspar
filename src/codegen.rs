@@ -2,22 +2,22 @@ use bytecode::{Chunk, Inst};
 use std::collections::HashMap;
 use syntax::{Expr, ExprF, Literal};
 
-pub struct Codegen {
-  pub chunks: Vec<Chunk>,
+pub struct Codegen<'str> {
+  pub chunks: Vec<Chunk<'str>>,
 }
 
-impl Codegen {
+impl<'str> Codegen<'str> {
   pub fn new() -> Self {
     Codegen{
       chunks: vec![],
     }
   }
 
-  pub fn codegen_func<T>(
+  pub fn codegen_func<'expr, T>(
     &mut self,
     env: &HashMap<&str, usize>,
     captures: usize,
-    body: &Expr<T>,
+    body: &Expr<'str, 'expr, T>,
   ) -> usize {
     let mut insts = vec![];
     self.codegen_expr(env, body, &mut insts);
@@ -30,15 +30,21 @@ impl Codegen {
     self.chunks.len() - 1
   }
 
-  pub fn codegen_expr<T>(
+  pub fn codegen_expr<'expr, T>(
     &mut self,
     env: &HashMap<&str, usize>,
-    expr: &Expr<T>,
-    insts: &mut Vec<Inst>,
+    expr: &Expr<'str, 'expr, T>,
+    insts: &mut Vec<Inst<'str>>,
   ) {
     match expr.1 {
       ExprF::Lit(ref lit) =>
         self.codegen_literal(lit, insts),
+      ExprF::Var("stdout#") =>
+        insts.push(Inst::NewI32(1)),
+      ExprF::Var("to_utf8#") =>
+        insts.push(Inst::NewI32(1)),
+      ExprF::Var("write#") =>
+        insts.push(Inst::NewI32(1)),
       ExprF::Var(name) => {
         let offset = env[name];
         insts.push(Inst::GetLocal(offset));
@@ -61,10 +67,16 @@ impl Codegen {
     }
   }
 
-  pub fn codegen_literal(&self, lit: &Literal, insts: &mut Vec<Inst>) {
+  pub fn codegen_literal(
+    &self,
+    lit: &Literal<'str>,
+    insts: &mut Vec<Inst<'str>>,
+  ) {
     match *lit {
       Literal::Bool(value) =>
-        insts.push(Inst::NewBool(value)),
+        insts.push(Inst::NewI32(value as i32)),
+      Literal::Str(value) =>
+        insts.push(Inst::NewStr(value)),
       _ => panic!("codegen_literal: NYI"),
     }
   }

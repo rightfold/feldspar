@@ -4,6 +4,7 @@ use typed_arena::Arena;
 
 pub fn env<'ty>(arena: &'ty Arena<Ty<'ty>>)
   -> HashMap<&'static str, &'ty Ty<'ty>> {
+  #[allow(non_snake_case)]
   let Func = |a, b| arena.alloc(Ty::Func(a, b));
 
   let mut map = HashMap::new();

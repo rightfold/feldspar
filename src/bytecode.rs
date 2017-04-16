@@ -1,12 +1,12 @@
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Chunk {
-  pub insts: Vec<Inst>,
+pub struct Chunk<'str> {
+  pub insts: Vec<Inst<'str>>,
   pub locals: usize,
   pub captures: usize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Inst {
+pub enum Inst<'str> {
   NoOp,
 
   Call,
@@ -17,6 +17,7 @@ pub enum Inst {
   GetLocal(usize),
 
   New(usize, usize),
-  NewBool(bool),
+  NewI32(i32),
+  NewStr(&'str str),
   NewFunc(usize),
 }

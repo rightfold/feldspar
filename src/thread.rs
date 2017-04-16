@@ -2,15 +2,15 @@ use bytecode::{Chunk, Inst};
 use interpret::{Jump, interpret};
 use value::{GC, Ref};
 
-pub struct Thread<'chunk, 'gc, GetChunk> {
+pub struct Thread<'str, 'chunk, 'gc, GetChunk> where 'str: 'chunk {
   gc: &'gc GC,
   get_chunk: GetChunk,
-  call_stack: Vec<StackFrame<'chunk, 'gc>>,
+  call_stack: Vec<StackFrame<'str, 'chunk, 'gc>>,
   eval_stack: Vec<Ref<'gc>>,
 }
 
-struct StackFrame<'chunk, 'gc> {
-  bytecode: &'chunk [Inst],
+struct StackFrame<'str, 'chunk, 'gc> where 'str: 'chunk {
+  bytecode: &'chunk [Inst<'str>],
   pcounter: usize,
   locals: Vec<Ref<'gc>>,
 }
@@ -21,12 +21,12 @@ pub enum Status {
   Finished,
 }
 
-impl<'chunk, 'gc, GetChunk> Thread<'chunk, 'gc, GetChunk>
-  where GetChunk: Fn(usize) -> &'chunk Chunk {
+impl<'str, 'chunk, 'gc, GetChunk> Thread<'str, 'chunk, 'gc, GetChunk>
+  where GetChunk: Fn(usize) -> &'chunk Chunk<'str> {
   pub fn new(
     gc: &'gc GC,
     get_chunk: GetChunk,
-    bytecode: &'chunk [Inst],
+    bytecode: &'chunk [Inst<'str>],
     locals: usize,
   ) -> Self {
     let stack_frame = StackFrame{
@@ -111,9 +111,9 @@ mod test {
     };
     let gc = GC::new();
     let bytecode = [
-      Inst::NewBool(true),
+      Inst::NewI32(1),
       Inst::NewFunc(0),
-      Inst::NewBool(false),
+      Inst::NewI32(0),
       Inst::Call,
       Inst::Return,
     ];
@@ -125,19 +125,19 @@ mod test {
     assert_eq!(thread.eval_stack[0].ptr_count(), 2);
     assert_eq!(thread.eval_stack[0].aux_count(), 0);
     assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().ptr_count(), 0);
-    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 1);
-    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux(), &[1]);
+    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 4);
+    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), &1);
     assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().ptr_count(), 0);
-    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 1);
-    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux(), &[0]);
+    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 4);
+    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), &0);
   }
 
   #[test]
   fn test_new() {
     let gc = GC::new();
     let bytecode = [
-      Inst::NewBool(true),
-      Inst::NewBool(false),
+      Inst::NewI32(1),
+      Inst::NewI32(0),
       Inst::New(2, 0),
       Inst::Return,
     ];
@@ -149,10 +149,10 @@ mod test {
     assert_eq!(thread.eval_stack[0].ptr_count(), 2);
     assert_eq!(thread.eval_stack[0].aux_count(), 0);
     assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().ptr_count(), 0);
-    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 1);
-    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux(), &[1]);
+    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 4);
+    assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), &1);
     assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().ptr_count(), 0);
-    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 1);
-    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux(), &[0]);
+    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 4);
+    assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), &0);
   }
 }

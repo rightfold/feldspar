@@ -13,14 +13,16 @@ pub enum Jump {
   Relative(isize),
 }
 
-pub fn interpret<'gc, 'chunk, GetChunk>(
+pub fn interpret<'str, 'gc, 'chunk, GetChunk>(
   gc: &'gc GC,
   get_chunk: &GetChunk,
   stack: &mut Vec<Ref<'gc>>,
   locals: &mut [Ref<'gc>],
   inst: &Inst,
 ) -> StateDiff<'gc>
-  where GetChunk: Fn(usize) -> &'chunk Chunk {
+  where
+    GetChunk: Fn(usize) -> &'chunk Chunk<'str>,
+    'str: 'chunk {
   let mut state_diff = StateDiff{
     jump: Jump::Relative(1),
     return_: false,
@@ -53,9 +55,14 @@ pub fn interpret<'gc, 'chunk, GetChunk>(
       }
       stack.push(new);
     },
-    Inst::NewBool(value) => {
-      let new = gc.alloc(0, 1);
-      new.aux()[0] = value as u8;
+    Inst::NewI32(value) => {
+      let new = gc.alloc(0, 4);
+      *new.aux_i32() = value;
+      stack.push(new);
+    },
+    Inst::NewStr(value) => {
+      let new = gc.alloc(0, value.len());
+      new.aux().copy_from_slice(value.as_bytes());
       stack.push(new);
     },
     Inst::NewFunc(chunk_id) => {
