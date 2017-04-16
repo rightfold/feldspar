@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
-use syntax::{Expr, ExprF};
+use syntax::{Expr, ExprF, Literal};
 use typed_arena::Arena;
 
 pub type Error = &'static str;
@@ -119,9 +119,12 @@ impl<'ty> Check<'ty> {
     expr: &Expr<T>,
   ) -> Result<&'ty Ty<'ty>, Error> {
     match expr.1 {
-      ExprF::Lit(_) =>
-        // FIXME: Non-Boolean literals.
+      ExprF::Lit(Literal::Bool(_)) =>
         Ok(&TY_BOOL),
+      ExprF::Lit(Literal::Int(_)) =>
+        Ok(&TY_INT),
+      ExprF::Lit(Literal::Str(_)) =>
+        Ok(&TY_STR),
       ExprF::Var(name) =>
         match env.get(&name) {
           Some(ty) => Ok(ty),
