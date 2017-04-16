@@ -81,8 +81,8 @@ pub fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
     },
 
     Inst::Write => {
-      let bytes = stack.pop().unwrap();
       let handle = stack.pop().unwrap();
+      let bytes = stack.pop().unwrap();
 
       let status = unsafe {
         libc::write(

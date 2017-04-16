@@ -74,6 +74,8 @@ fn main_() -> Result<(), AnyError>{
   let mut codegen = Codegen::new();
   let mut insts = vec![];
   codegen.codegen_expr(&HashMap::new(), &expr, &mut insts);
+  insts.push(Inst::New(0, 0));
+  insts.push(Inst::Call);
   insts.push(Inst::Return);
 
   let gc = GC::new();

@@ -73,19 +73,24 @@ impl<'str> Codegen<'str> {
         insts.push(Inst::NewFunc(chunk_id));
       },
       ExprF::Var("write#") => {
-        // FIXME: Return I/O action.
-        let inner_chunk_id = self.codegen_func_bytecode(2, 1, vec![
-          Inst::GetLocal(1),
-          Inst::GetLocal(0),
+        let action_chunk_id = self.codegen_func_bytecode(3, 2, vec![
+          Inst::GetLocal(1), // handle
+          Inst::GetLocal(2), // bytes
           Inst::Write,
           Inst::Return,
         ]);
-        let outer_chunk_id = self.codegen_func_bytecode(1, 0, vec![
-          Inst::GetLocal(0),
-          Inst::NewFunc(inner_chunk_id),
+        let curry2_chunk_id = self.codegen_func_bytecode(2, 1, vec![
+          Inst::GetLocal(0), // bytes
+          Inst::GetLocal(1), // handle
+          Inst::NewFunc(action_chunk_id),
           Inst::Return,
         ]);
-        insts.push(Inst::NewFunc(outer_chunk_id));
+        let curry1_chunk_id = self.codegen_func_bytecode(1, 0, vec![
+          Inst::GetLocal(0), // handle
+          Inst::NewFunc(curry2_chunk_id),
+          Inst::Return,
+        ]);
+        insts.push(Inst::NewFunc(curry1_chunk_id));
       },
       ExprF::Var(name) => {
         let offset = env[name];
