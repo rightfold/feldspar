@@ -20,6 +20,7 @@ pub enum Ty<'ty> {
   Int,
   Str,
   Bytes,
+  Tuple(Vec<&'ty Ty<'ty>>),
 }
 
 pub static TY_BOOL:  Ty<'static> = Ty::Bool;
@@ -51,6 +52,15 @@ impl<'ty> Ty<'ty> {
         write!(into, "str"),
       Ty::Bytes =>
         write!(into, "bytes"),
+      Ty::Tuple(ref elem_tys) => {
+        try!(write!(into, "{{"));
+        for elem_ty in elem_tys {
+          try!(elem_ty.pretty(purge, into));
+          try!(write!(into, ","));
+        }
+        try!(write!(into, "}}"));
+        Ok(())
+      },
     }
   }
 
@@ -168,7 +178,15 @@ impl<'ty> Check<'ty> {
 
         Ok(result_ty)
       },
-      ExprF::Tup(_) => panic!("NYI"),
+      ExprF::Tup(ref elems) => {
+        let mut elem_tys = Vec::with_capacity(elems.len());
+        for elem in elems {
+          let elem_ty = try!(self.infer(env, elem));
+          elem_tys.push(elem_ty);
+        }
+        let tuple_ty = self.arena.alloc(Ty::Tuple(elem_tys));
+        Ok(tuple_ty)
+      },
     }
   }
 }
