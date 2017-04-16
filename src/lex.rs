@@ -46,6 +46,8 @@ pub enum LexemeF<'a> {
   Arrow,
   LeftParenthesis,
   RightParenthesis,
+
+  Str(&'a str),
 }
 
 #[derive(Clone, Debug)]
@@ -123,6 +125,15 @@ impl<'a> Iterator for Lexer<'a> {
         } else {
           self.abort = true;
           Some(Err(position))
+        }
+      },
+      Some('"') => {
+        self.take_char();
+        let value = self.take_chars_while(|c| c != '"');
+        if self.take_char() != Some('"') {
+          Some(Err(position))
+        } else {
+          Some(Ok(Lexeme(position, LexemeF::Str(value))))
         }
       },
       Some(c) if is_identifier_start(c) => {
@@ -235,6 +246,18 @@ mod test {
         Ok(Lexeme(Position::new(1, 1, 2), LexemeF::RightParenthesis)),
         Ok(Lexeme(Position::new(2, 1, 3), LexemeF::Arrow)),
       ]
+    );
+  }
+
+  #[test]
+  fn test_string() {
+    assert_eq!(
+      Lexer::new("\"foo\"").collect::<Vec<_>>(),
+      vec![Ok(Lexeme(Position::new(0, 1, 1), LexemeF::Str("foo")))]
+    );
+    assert_eq!(
+      Lexer::new("\"foo").collect::<Vec<_>>(),
+      vec![Err(Position::new(0, 1, 1))]
     );
   }
 }

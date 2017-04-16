@@ -84,6 +84,10 @@ pub fn read_expr_2<'a, 'b>(
       let expr = Expr(position, ExprF::Abs(name, body));
       Ok(arena.alloc(expr))
     },
+    LexemeF::Str(value) => {
+      let expr = Expr(position, ExprF::Lit(Literal::Str(value)));
+      Ok(arena.alloc(expr))
+    },
     _ => Err(Error(position, "expected expression")),
   }
 }

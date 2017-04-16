@@ -107,8 +107,7 @@ impl<'ty> Check<'ty> {
         Ok(()),
       (&Ty::Str, &Ty::Str) =>
         Ok(()),
-      (a, b) => {
-        println!("{:?} /= {:?}", a, b);
+      (_, _) => {
         Err("cannot unify types")
       },
     }
@@ -127,7 +126,6 @@ impl<'ty> Check<'ty> {
         match env.get(&name) {
           Some(ty) => Ok(ty),
           None => {
-            println!("{:?}", name);
             Err("cannot find variable")
           },
         },

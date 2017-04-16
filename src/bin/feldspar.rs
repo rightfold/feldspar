@@ -62,6 +62,7 @@ fn main_() -> Result<(), Error> {
   let expr_arena = Arena::new();
   let mut lexer = Lexer::new(&source);
   let expr = try!(parse::read_expr(&expr_arena, &mut lexer));
+  println!("{:?}", expr);
 
   let type_arena = Arena::new();
   let mut check = Check::new(&type_arena);
