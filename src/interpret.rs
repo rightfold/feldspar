@@ -55,11 +55,8 @@ pub unsafe fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
       }
       stack.push(new);
     },
-    Inst::NewI32(value) => {
-      let new = gc.alloc(0, 4);
-      *new.aux_i32() = value;
-      stack.push(new);
-    },
+    Inst::NewI32(value) =>
+      stack.push(gc.alloc_i32(0, value)),
     Inst::NewStr(str_id) => {
       let value = get_str(str_id);
       let new = gc.alloc(0, value.len());
@@ -68,12 +65,11 @@ pub unsafe fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
     },
     Inst::NewFunc(chunk_id) => {
       let chunk = get_chunk(chunk_id);
-      let new = gc.alloc(chunk.captures, mem::size_of::<usize>());
+      let new = gc.alloc_usize(chunk.captures, chunk_id.0);
       for offset in (0 .. chunk.captures).rev() {
         let ptr = stack.pop().unwrap();
         new.set_ptr(offset, &ptr);
       }
-      *new.aux_usize() = chunk_id.0;
       stack.push(new);
     },
 

@@ -89,12 +89,24 @@ impl GC {
     GC{}
   }
 
-  pub fn alloc<'a>(&'a self, ptr_count: usize, aux_count: usize) -> Ref<'a> {
+  pub fn alloc(&self, ptr_count: usize, aux_count: usize) -> Ref {
     unsafe {
       // FIXME: Tell GC to retain root.
       let lay = fs_alloc(ptr_count, aux_count);
       Ref{gc: self, lay: lay}
     }
+  }
+
+  pub fn alloc_i32(&self, ptr_count: usize, aux: i32) -> Ref {
+    let value = self.alloc(ptr_count, mem::size_of::<i32>());
+    unsafe { *value.aux_i32() = aux };
+    value
+  }
+
+  pub fn alloc_usize(&self, ptr_count: usize, aux: usize) -> Ref {
+    let value = self.alloc(ptr_count, mem::size_of::<usize>());
+    unsafe { *value.aux_usize() = aux };
+    value
   }
 }
 
