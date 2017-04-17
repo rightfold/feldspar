@@ -84,13 +84,68 @@ pub fn read_expr_2<'a, 'b>(
       let expr = Expr(position, ExprF::Abs(name, body));
       Ok(arena.alloc(expr))
     },
+    LexemeF::Let => {
+      let mut bindings = vec![];
+
+      loop {
+        let lexer_clone = lexer.clone();
+
+        match read_lexeme(lexer) {
+          Ok(Lexeme(_, LexemeF::Val)) => (),
+          _ => {
+            lexer.clone_from(&lexer_clone);
+            break;
+          },
+        }
+
+        let name = read_lexeme_if(lexer, |Lexeme(p, l)| match l {
+          LexemeF::Identifier(name) => Ok(name),
+          _ => Err(Error(p, "expected let binding name")),
+        })?;
+
+        read_lexeme_if(lexer, |Lexeme(p, l)| match l {
+          LexemeF::Equals => Ok(()),
+          _ => Err(Error(p, "expected `=`")),
+        })?;
+
+        let value = match read_expr(arena, lexer) {
+          Ok(expr) => expr,
+          Err(_) => {
+            lexer.clone_from(&lexer_clone);
+            break
+          },
+        };
+
+        bindings.push((name, value));
+      }
+
+      read_lexeme_if(lexer, |Lexeme(p, l)| match l {
+        LexemeF::In => Ok(()),
+        _ => Err(Error(p, "expected `in`")),
+      })?;
+
+      let body = read_expr(arena, lexer)?;
+
+      read_lexeme_if(lexer, |Lexeme(p, l)| match l {
+        LexemeF::End => Ok(()),
+        _ => Err(Error(p, "expected `end`")),
+      })?;
+
+      let mut expr = body;
+      for &(name, value) in bindings.iter().rev() {
+        let abs = arena.alloc(Expr(position, ExprF::Abs(name, expr)));
+        let app = arena.alloc(Expr(position, ExprF::App(abs, value)));
+        expr = app;
+      }
+      Ok(expr)
+    },
     LexemeF::LeftParenthesis => {
-      let expr = read_expr(arena, lexer);
+      let expr = read_expr(arena, lexer)?;
       read_lexeme_if(lexer, |Lexeme(p, l)| match l {
         LexemeF::RightParenthesis => Ok(()),
         _ => Err(Error(p, "expected `)`")),
       })?;
-      expr
+      Ok(expr)
     },
     LexemeF::LeftBrace => {
       let mut elems = vec![];

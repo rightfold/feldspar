@@ -41,10 +41,14 @@ pub enum LexemeF<'a> {
   End,
   False,
   Fun,
+  In,
+  Let,
   True,
+  Val,
 
   Arrow,
   Comma,
+  Equals,
   LeftParenthesis,
   RightParenthesis,
   LeftBrace,
@@ -132,6 +136,10 @@ impl<'a> Iterator for Lexer<'a> {
         self.take_char();
         Some(Ok(Lexeme(position, LexemeF::Comma)))
       },
+      Some('=') => {
+        self.take_char();
+        Some(Ok(Lexeme(position, LexemeF::Equals)))
+      },
       Some('-') => {
         self.take_char();
         if self.peek_char() == Some('>') {
@@ -157,7 +165,10 @@ impl<'a> Iterator for Lexer<'a> {
           "end"   => LexemeF::End,
           "false" => LexemeF::False,
           "fun"   => LexemeF::Fun,
+          "in"    => LexemeF::In,
+          "let"   => LexemeF::Let,
           "true"  => LexemeF::True,
+          "val"   => LexemeF::Val,
           _ => LexemeF::Identifier(name),
         })))
       },
