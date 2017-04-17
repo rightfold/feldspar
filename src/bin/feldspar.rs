@@ -49,21 +49,21 @@ unsafe fn main_() {
 unsafe fn main__() -> Result<(), AnyError>{
   let args: Vec<_> = env::args().collect();
   if args.len() < 2 {
-    try!(usage(&mut io::stderr()));
+    usage(&mut io::stderr())?;
     process::exit(1);
   }
 
   let mut source = String::new();
-  try!(try!(File::open(&args[1])).read_to_string(&mut source));
+  File::open(&args[1])?.read_to_string(&mut source)?;
 
   let expr_arena = Arena::new();
   let mut lexer = Lexer::new(&source);
-  let expr = try!(parse::read_expr(&expr_arena, &mut lexer));
+  let expr = parse::read_expr(&expr_arena, &mut lexer)?;
   println!("{:?}", expr);
 
   let type_arena = Arena::new();
   let mut check = Check::new(&type_arena);
-  let ty = try!(check.infer(&builtin::env(&type_arena), &expr).map_err(|err| {
+  let ty = check.infer(&builtin::env(&type_arena), &expr).map_err(|err| {
     AnyError(match err {
       check::Error::Unify(a, b) =>
         "cannot unify type\n  ".to_string() +
@@ -74,7 +74,7 @@ unsafe fn main__() -> Result<(), AnyError>{
         "cannot find variable\n  ".to_string() +
         name,
     })
-  }));
+  })?;
   println!("{}", ty.pretty_string(&|t| check.purge(t)));
 
   let mut codegen = Codegen::new();

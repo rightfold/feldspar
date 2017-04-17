@@ -37,11 +37,11 @@ impl<'ty> Ty<'ty> {
       Ty::Deferred(ID(id)) =>
         write!(into, "t{}", id),
       Ty::Func(a, b) => {
-        try!(write!(into, "("));
-        try!(a.pretty(purge, into));
-        try!(write!(into, " -> "));
-        try!(b.pretty(purge, into));
-        try!(write!(into, ")"));
+        write!(into, "(")?;
+        a.pretty(purge, into)?;
+        write!(into, " -> ")?;
+        b.pretty(purge, into)?;
+        write!(into, ")")?;
         Ok(())
       },
       Ty::Bool =>
@@ -53,12 +53,12 @@ impl<'ty> Ty<'ty> {
       Ty::Bytes =>
         write!(into, "bytes"),
       Ty::Tuple(ref elem_tys) => {
-        try!(write!(into, "{{"));
+        write!(into, "{{")?;
         for elem_ty in elem_tys {
-          try!(elem_ty.pretty(purge, into));
-          try!(write!(into, ","));
+          elem_ty.pretty(purge, into)?;
+          write!(into, ",")?;
         }
-        try!(write!(into, "}}"));
+        write!(into, "}}")?;
         Ok(())
       },
     }
@@ -123,8 +123,8 @@ impl<'ty> Check<'ty> {
         Ok(())
       },
       (&Ty::Func(ty_a, ty_b), &Ty::Func(uy_a, uy_b)) => {
-        try!(self.unify(ty_a, uy_a));
-        try!(self.unify(ty_b, uy_b));
+        self.unify(ty_a, uy_a)?;
+        self.unify(ty_b, uy_b)?;
         Ok(())
       },
       (&Ty::Bool, &Ty::Bool) =>
@@ -140,7 +140,7 @@ impl<'ty> Check<'ty> {
           Err(Error::Unify(&TY_BOOL, &TY_INT)) // FIXME: Tuple types.
         } else {
           for (ty, uy) in elem_tys.iter().zip(elem_uys.iter()) {
-            try!(self.unify(ty, uy));
+            self.unify(ty, uy)?;
           }
           Ok(())
         }
@@ -173,25 +173,25 @@ impl<'ty> Check<'ty> {
 
         let mut body_env = env.clone();
         body_env.insert(param, param_ty);
-        let result_ty = try!(self.infer(&body_env, body));
+        let result_ty = self.infer(&body_env, body)?;
 
         let func_ty = self.arena.alloc(Ty::Func(param_ty, result_ty));
         Ok(func_ty)
       },
       ExprF::App(callee, argument) => {
-        let callee_ty = try!(self.infer(env, callee));
-        let argument_ty = try!(self.infer(env, argument));
+        let callee_ty = self.infer(env, callee)?;
+        let argument_ty = self.infer(env, argument)?;
 
         let result_ty = self.fresh();
         let func_ty = self.arena.alloc(Ty::Func(argument_ty, result_ty));
-        try!(self.unify(callee_ty, func_ty));
+        self.unify(callee_ty, func_ty)?;
 
         Ok(result_ty)
       },
       ExprF::Tup(ref elems) => {
         let mut elem_tys = Vec::with_capacity(elems.len());
         for elem in elems {
-          let elem_ty = try!(self.infer(env, elem));
+          let elem_ty = self.infer(env, elem)?;
           elem_tys.push(elem_ty);
         }
         let tuple_ty = self.arena.alloc(Ty::Tuple(elem_tys));
