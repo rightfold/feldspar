@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use syntax::{Expr, ExprF, Literal};
 
 pub struct Codegen<'str> {
-  pub strs: Vec<&'str str>,
-  pub chunks: Vec<Chunk>,
+  strs: Vec<&'str str>,
+  chunks: Vec<Chunk>,
 }
 
 impl<'str> Codegen<'str> {
@@ -13,6 +13,14 @@ impl<'str> Codegen<'str> {
       strs: vec![],
       chunks: vec![],
     }
+  }
+
+  pub fn str(&self, id: StrID) -> &'str str {
+    self.strs[id.0]
+  }
+
+  pub fn chunk(&self, id: ChunkID) -> &Chunk {
+    &self.chunks[id.0]
   }
 
   fn codegen_func_bytecode(

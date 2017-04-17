@@ -87,8 +87,8 @@ unsafe fn main__() -> Result<(), AnyError>{
   let gc = GC::new();
   let mut thread = Thread::new(
     &gc,
-    |id| &codegen.strs[id.0],
-    |id| &codegen.chunks[id.0],
+    |id| &codegen.str(id),
+    |id| &codegen.chunk(id),
     &insts,
     0,
   );
