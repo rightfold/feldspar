@@ -55,33 +55,37 @@ unsafe fn main__() -> Result<(), AnyError>{
   let mut source = String::new();
   File::open(&args[1])?.read_to_string(&mut source)?;
 
-  let expr_arena = Arena::new();
-  let mut lexer = Lexer::new(&source);
-  let expr = parse::read_expr(&expr_arena, &mut lexer)?;
-  println!("{:?}", expr);
+  let (codegen, insts) = {
+    let expr_arena = Arena::new();
+    let mut lexer = Lexer::new(&source);
+    let expr = parse::read_expr(&expr_arena, &mut lexer)?;
+    println!("{:?}", expr);
 
-  let type_arena = Arena::new();
-  let mut check = Check::new(&type_arena);
-  let ty = check.infer(&HashMap::new(), &expr).map_err(|err| {
-    AnyError(match err {
-      check::Error::Unify(a, b) =>
-        "cannot unify type\n  ".to_string() +
-        &a.pretty_string(&|t| check.purge(t)) +
-        "\nwith type\n  " +
-        &b.pretty_string(&|t| check.purge(t)),
-      check::Error::Var(name) =>
-        "cannot find variable\n  ".to_string() +
-        name,
-    })
-  })?;
-  println!("{}", ty.pretty_string(&|t| check.purge(t)));
+    let type_arena = Arena::new();
+    let mut check = Check::new(&type_arena);
+    let ty = check.infer(&HashMap::new(), &expr).map_err(|err| {
+      AnyError(match err {
+        check::Error::Unify(a, b) =>
+          "cannot unify type\n  ".to_string() +
+          &a.pretty_string(&|t| check.purge(t)) +
+          "\nwith type\n  " +
+          &b.pretty_string(&|t| check.purge(t)),
+        check::Error::Var(name) =>
+          "cannot find variable\n  ".to_string() +
+          name,
+      })
+    })?;
+    println!("{}", ty.pretty_string(&|t| check.purge(t)));
 
-  let mut codegen = Codegen::new();
-  let mut insts = vec![];
-  codegen.codegen_expr(&HashMap::new(), &expr, &mut insts);
-  insts.push(Inst::New(0, 0));
-  insts.push(Inst::Call);
-  insts.push(Inst::Return);
+    let mut codegen = Codegen::new();
+    let mut insts = vec![];
+    codegen.codegen_expr(&HashMap::new(), &expr, &mut insts);
+    insts.push(Inst::New(0, 0));
+    insts.push(Inst::Call);
+    insts.push(Inst::Return);
+
+    (codegen, insts)
+  };
 
   let gc = GC::new();
   let mut thread = Thread::new(
