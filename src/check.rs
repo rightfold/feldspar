@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::fmt;
-use syntax::{Expr, ExprF, Literal, TyExpr, TyExprF};
+use syntax::{Expr, ExprF, Literal};
 use typed_arena::Arena;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Error<'s, 'ty> {
-  Unify(&'ty Ty<'ty>, &'ty Ty<'ty>),
+pub enum Error<'s, 'ty> where 's: 'ty {
+  Unify(&'ty Ty<'s, 'ty>, &'ty Ty<'s, 'ty>),
   Var(&'s str),
   RankN,
 }
@@ -14,37 +14,48 @@ pub enum Error<'s, 'ty> {
 pub struct ID(usize);
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Ty<'ty> {
+pub enum Ty<'s, 'ty> where 's: 'ty {
+  Var(&'s str),
   Deferred(ID),
   Skolem(ID),
-  Func(&'ty Ty<'ty>, &'ty Ty<'ty>),
+  Forall(&'s str, &'ty Ty<'s, 'ty>),
+  Func(&'ty Ty<'s, 'ty>, &'ty Ty<'s, 'ty>),
   Bool,
   Int,
   Str,
   Bytes,
-  Tuple(Vec<&'ty Ty<'ty>>),
+  Tuple(Vec<&'ty Ty<'s, 'ty>>),
 }
 
-pub static TY_BOOL:  Ty<'static> = Ty::Bool;
-pub static TY_INT:   Ty<'static> = Ty::Int;
-pub static TY_STR:   Ty<'static> = Ty::Str;
-pub static TY_BYTES: Ty<'static> = Ty::Bytes;
+pub static TY_BOOL:  Ty<'static, 'static> = Ty::Bool;
+pub static TY_INT:   Ty<'static, 'static> = Ty::Int;
+pub static TY_STR:   Ty<'static, 'static> = Ty::Str;
+pub static TY_BYTES: Ty<'static, 'static> = Ty::Bytes;
 
-pub static BUILTIN_STDOUT_TY:  Ty<'static> = Ty::Int;
-pub static BUILTIN_TO_UTF8_TY: Ty<'static> = Ty::Func(&TY_STR, &TY_BYTES);
-pub static BUILTIN_WRITE_TY:   Ty<'static> =
+pub static BUILTIN_STDOUT_TY:  Ty<'static, 'static> = Ty::Int;
+pub static BUILTIN_TO_UTF8_TY: Ty<'static, 'static> =
+  Ty::Func(&TY_STR, &TY_BYTES);
+pub static BUILTIN_WRITE_TY:   Ty<'static, 'static> =
   Ty::Func(&TY_INT, &Ty::Func(&TY_BYTES, &TY_INT)); // FIXME: Return io int.
 
-impl<'ty> Ty<'ty> {
+impl<'s, 'ty> Ty<'s, 'ty> {
   pub fn pretty<Purge, W>(&'ty self, purge: &Purge, into: &mut W) -> fmt::Result
     where
-      Purge: Fn(&'ty Ty<'ty>) -> &'ty Ty<'ty>,
+      Purge: Fn(&'ty Ty<'s, 'ty>) -> &'ty Ty<'s, 'ty>,
       W: fmt::Write {
     match *purge(self) {
+      Ty::Var(name) =>
+        write!(into, "{}", name),
       Ty::Deferred(ID(id)) =>
         write!(into, "?{}", id),
       Ty::Skolem(ID(id)) =>
         write!(into, "!{}", id),
+      Ty::Forall(name, inner) => {
+        write!(into, "forall {}, ", name)?;
+        inner.pretty(purge, into)?;
+        write!(into, "end")?;
+        Ok(())
+      },
       Ty::Func(a, b) => {
         write!(into, "(")?;
         a.pretty(purge, into)?;
@@ -70,41 +81,41 @@ impl<'ty> Ty<'ty> {
   }
 
   pub fn pretty_string<Purge>(&'ty self, purge: &Purge) -> String
-    where Purge: Fn(&'ty Ty<'ty>) -> &'ty Ty<'ty> {
+    where Purge: Fn(&'ty Ty<'s, 'ty>) -> &'ty Ty<'s, 'ty> {
     let mut pretty = String::new();
     self.pretty(purge, &mut pretty).unwrap();
     pretty
   }
 }
 
-pub struct Check<'ty> {
-  arena: &'ty Arena<Ty<'ty>>,
+pub struct Check<'s, 'ty> where 's: 'ty {
+  arena: &'ty Arena<Ty<'s, 'ty>>,
   next_id: usize,
-  solved: HashMap<ID, &'ty Ty<'ty>>,
+  solved: HashMap<ID, &'ty Ty<'s, 'ty>>,
 }
 
-impl<'ty> Check<'ty> {
-  pub fn new(arena: &'ty Arena<Ty<'ty>>) -> Self {
+impl<'s, 'ty> Check<'s, 'ty> {
+  pub fn new(arena: &'ty Arena<Ty<'s, 'ty>>) -> Self {
     Check{arena: arena, next_id: 0, solved: HashMap::new()}
   }
 
-  pub fn fresh(&mut self) -> &'ty Ty<'ty> {
+  pub fn fresh(&mut self) -> &'ty Ty<'s, 'ty> {
     let ty = self.arena.alloc(Ty::Deferred(ID(self.next_id)));
     self.next_id += 1;
     ty
   }
 
-  pub fn fresh_skolem(&mut self) -> &'ty Ty<'ty> {
+  pub fn fresh_skolem(&mut self) -> &'ty Ty<'s, 'ty> {
     let ty = self.arena.alloc(Ty::Skolem(ID(self.next_id)));
     self.next_id += 1;
     ty
   }
 
-  fn solve(&mut self, id: ID, ty: &'ty Ty<'ty>) {
+  fn solve(&mut self, id: ID, ty: &'ty Ty<'s, 'ty>) {
     self.solved.insert(id, ty);
   }
 
-  pub fn purge(&self, ty: &'ty Ty<'ty>) -> &'ty Ty<'ty> {
+  pub fn purge(&self, ty: &'ty Ty<'s, 'ty>) -> &'ty Ty<'s, 'ty> {
     if let &Ty::Deferred(id) = ty {
       self.solved.get(&id).map(|uy| self.purge(uy)).unwrap_or(ty)
     } else {
@@ -112,7 +123,7 @@ impl<'ty> Check<'ty> {
     }
   }
 
-  pub fn unify<'s>(&mut self, ty: &'ty Ty<'ty>, uy: &'ty Ty<'ty>)
+  pub fn unify(&mut self, ty: &'ty Ty<'s, 'ty>, uy: &'ty Ty<'s, 'ty>)
     -> Result<(), Error<'s, 'ty>> {
     match (self.purge(ty), self.purge(uy)) {
       (&Ty::Deferred(ty_id), &Ty::Deferred(uy_id))
@@ -150,12 +161,11 @@ impl<'ty> Check<'ty> {
     }
   }
 
-  pub fn infer<'s, 'e, 'te, T>(
+  pub fn infer<'e, T>(
     &mut self,
-    env: &HashMap<&str, &'ty Ty<'ty>>,
-    ty_env: &HashMap<&str, &'ty Ty<'ty>>,
-    expr: &Expr<'s, 'e, &'te TyExpr<'s, 'te, T>, T>,
-  ) -> Result<&'ty Ty<'ty>, Error<'s, 'ty>> {
+    env: &HashMap<&str, &'ty Ty<'s, 'ty>>,
+    expr: &Expr<'s, 'e, &'ty Ty<'s, 'ty>, T>,
+  ) -> Result<&'ty Ty<'s, 'ty>, Error<'s, 'ty>> {
     match expr.1 {
       ExprF::Lit(Literal::Bool(_)) => Ok(&TY_BOOL),
       ExprF::Lit(Literal::Int(_))  => Ok(&TY_INT),
@@ -169,14 +179,14 @@ impl<'ty> Check<'ty> {
 
         let mut body_env = env.clone();
         body_env.insert(param, param_ty);
-        let result_ty = self.infer(&body_env, ty_env, body)?;
+        let result_ty = self.infer(&body_env, body)?;
 
         let func_ty = self.arena.alloc(Ty::Func(param_ty, result_ty));
         Ok(func_ty)
       },
       ExprF::App(callee, argument) => {
-        let callee_ty = self.infer(env, ty_env, callee)?;
-        let argument_ty = self.infer(env, ty_env, argument)?;
+        let callee_ty = self.infer(env, callee)?;
+        let argument_ty = self.infer(env, argument)?;
 
         let result_ty = self.fresh();
         let func_ty = self.arena.alloc(Ty::Func(argument_ty, result_ty));
@@ -184,27 +194,27 @@ impl<'ty> Check<'ty> {
 
         Ok(result_ty)
       },
-      ExprF::Let(name, ty_expr_opt, value, body) => {
-        let value_ty = self.infer(env, ty_env, value)?;
+      ExprF::Let(name, name_ty_opt, value, body) => {
+        let value_ty = self.infer(env, value)?;
 
         let mut body_env = env.clone();
-        body_env.insert(name, match ty_expr_opt {
+        body_env.insert(name, match name_ty_opt {
           None => value_ty,
-          Some(ty_expr) => {
-            let asserted_ty = self.reify_ty_expr(ty_env, ty_expr)?;
-            self.unify(asserted_ty, value_ty)?;
-            asserted_ty
+          Some(name_ty) => {
+            let skolemized_ty = self.skolemize(name_ty)?;
+            self.unify(skolemized_ty, value_ty)?;
+            name_ty
           },
         });
 
-        let body_ty = self.infer(&body_env, ty_env, body)?;
+        let body_ty = self.infer(&body_env, body)?;
 
         Ok(body_ty)
       },
       ExprF::Tup(ref elems) => {
         let mut elem_tys = Vec::with_capacity(elems.len());
         for elem in elems {
-          let elem_ty = self.infer(env, ty_env, elem)?;
+          let elem_ty = self.infer(env, elem)?;
           elem_tys.push(elem_ty);
         }
         let tuple_ty = self.arena.alloc(Ty::Tuple(elem_tys));
@@ -213,37 +223,41 @@ impl<'ty> Check<'ty> {
     }
   }
 
-  pub fn reify_ty_expr<'s, 'te, T>(
+  pub fn skolemize(
     &mut self,
-    ty_env: &HashMap<&str, &'ty Ty<'ty>>,
-    ty_expr: &TyExpr<'s, 'te, T>,
-  ) -> Result<&'ty Ty<'ty>, Error<'s, 'ty>> {
-    match ty_expr.1 {
-      TyExprF::All(name, inner) => {
-        let mut inner_ty_env = ty_env.clone();
-        inner_ty_env.insert(name, self.fresh_skolem());
-        self.reify_ty_expr_no_all(&inner_ty_env, inner)
+    ty: &'ty Ty<'s, 'ty>,
+  ) -> Result<&'ty Ty<'s, 'ty>, Error<'s, 'ty>> {
+    match *ty {
+      Ty::Forall(name, inner) => {
+        let mut ty_env = HashMap::new();
+        ty_env.insert(name, self.fresh_skolem());
+        self.skolemize_no_forall(&ty_env, inner)
       },
-      _ => self.reify_ty_expr_no_all(ty_env, ty_expr),
+      _ => self.skolemize_no_forall(&HashMap::new(), ty),
     }
   }
 
-  pub fn reify_ty_expr_no_all<'s, 'te, T>(
+  pub fn skolemize_no_forall(
     &mut self,
-    ty_env: &HashMap<&str, &'ty Ty<'ty>>,
-    ty_expr: &TyExpr<'s, 'te, T>,
-  ) -> Result<&'ty Ty<'ty>, Error<'s, 'ty>> {
-    match ty_expr.1 {
-      TyExprF::Var(name) =>
-        ty_env.get(name).map(|&ty| ty).ok_or(Error::Var(name)),
-      TyExprF::Fun(from, to) => {
-        let from_ty = self.reify_ty_expr_no_all(ty_env, from)?;
-        let to_ty = self.reify_ty_expr_no_all(ty_env, to)?;
+    ty_env: &HashMap<&str, &'ty Ty<'s, 'ty>>,
+    ty: &'ty Ty<'s, 'ty>,
+  ) -> Result<&'ty Ty<'s, 'ty>, Error<'s, 'ty>> {
+    match *ty {
+      Ty::Var(name)      => ty_env.get(name).map(|&ty| ty).ok_or(Error::Var(name)),
+      Ty::Deferred(_)    => Ok(ty),
+      Ty::Skolem(_)      => Ok(ty),
+      Ty::Forall(_, _)   => Err(Error::RankN),
+      Ty::Func(from, to) => {
+        let from_ty = self.skolemize_no_forall(ty_env, from)?;
+        let to_ty = self.skolemize_no_forall(ty_env, to)?;
         let ty = Ty::Func(from_ty, to_ty);
         Ok(self.arena.alloc(ty))
       },
-      TyExprF::All(_, _) =>
-        Err(Error::RankN),
+      Ty::Bool  => Ok(ty),
+      Ty::Int   => Ok(ty),
+      Ty::Str   => Ok(ty),
+      Ty::Bytes => Ok(ty),
+      Ty::Tuple(_) => panic!("Check::skolemize_no_forall: NYI"),
     }
   }
 }
@@ -291,8 +305,6 @@ mod test {
     env.insert("vari", &TY_INT);
     env.insert("even", ty_arena.alloc(Ty::Func(&TY_INT, &TY_BOOL)));
 
-    let ty_env = HashMap::new();
-
     let expr = Expr(
       (),
       ExprF::App(
@@ -300,7 +312,7 @@ mod test {
         expr_arena.alloc(Expr((), ExprF::Var("vari"))),
       ),
     );
-    let ty = check.infer(&env, &ty_env, &expr);
+    let ty = check.infer(&env, &expr);
     assert_eq!(ty.map(|t| check.purge(t)), Ok(&TY_BOOL));
   }
 }

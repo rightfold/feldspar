@@ -1,5 +1,6 @@
+use check::Ty;
 use lex::{Lexeme, LexemeF, Lexer, Position};
-use syntax::{Expr, ExprF, Literal, TyExpr, TyExprF};
+use syntax::{Expr, ExprF, Literal};
 use typed_arena::Arena;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -26,19 +27,19 @@ fn peek_lexeme<'s>(lexer: &Lexer<'s>)
   read_lexeme(&mut lexer.clone())
 }
 
-pub fn read_expr<'s, 'e, 't>(
-  arena: &'e Arena<Expr<'s, 'e, &'t TyExpr<'s, 't, Position>, Position>>,
-  ty_arena: &'t Arena<TyExpr<'s, 't, Position>>,
+pub fn read_expr<'s, 'e, 'ty>(
+  arena: &'e Arena<Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>>,
+  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
   lexer: &mut Lexer<'s>,
-) -> Result<&'e Expr<'s, 'e, &'t TyExpr<'s, 't, Position>, Position>, Error> {
+) -> Result<&'e Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>, Error> {
   read_expr_1(arena, ty_arena, lexer)
 }
 
-pub fn read_expr_1<'s, 'e, 't>(
-  arena: &'e Arena<Expr<'s, 'e, &'t TyExpr<'s, 't, Position>, Position>>,
-  ty_arena: &'t Arena<TyExpr<'s, 't, Position>>,
+pub fn read_expr_1<'s, 'e, 'ty>(
+  arena: &'e Arena<Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>>,
+  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
   lexer: &mut Lexer<'s>,
-) -> Result<&'e Expr<'s, 'e, &'t TyExpr<'s, 't, Position>, Position>, Error> {
+) -> Result<&'e Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>, Error> {
   let mut callee = read_expr_2(arena, ty_arena, lexer)?;
   loop {
     let lexer_clone = lexer.clone();
@@ -56,11 +57,11 @@ pub fn read_expr_1<'s, 'e, 't>(
   Ok(callee)
 }
 
-pub fn read_expr_2<'s, 'e, 't>(
-  arena: &'e Arena<Expr<'s, 'e, &'t TyExpr<'s, 't, Position>, Position>>,
-  ty_arena: &'t Arena<TyExpr<'s, 't, Position>>,
+pub fn read_expr_2<'s, 'e, 'ty>(
+  arena: &'e Arena<Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>>,
+  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
   lexer: &mut Lexer<'s>,
-) -> Result<&'e Expr<'s, 'e, &'t TyExpr<'s, 't, Position>, Position>, Error> {
+) -> Result<&'e Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>, Error> {
   let Lexeme(position, lexeme) = read_lexeme(lexer)?;
   match lexeme {
     LexemeF::Identifier(name) => {
@@ -196,17 +197,17 @@ pub fn read_expr_2<'s, 'e, 't>(
   }
 }
 
-pub fn read_ty_expr<'s, 't>(
-  ty_arena: &'t Arena<TyExpr<'s, 't, Position>>,
+pub fn read_ty_expr<'s, 'ty>(
+  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
   lexer: &mut Lexer<'s>,
-) -> Result<&'t TyExpr<'s, 't, Position>, Error> {
+) -> Result<&'ty Ty<'s, 'ty>, Error> {
   read_ty_expr_1(ty_arena, lexer)
 }
 
-pub fn read_ty_expr_1<'s, 't>(
-  ty_arena: &'t Arena<TyExpr<'s, 't, Position>>,
+pub fn read_ty_expr_1<'s, 'ty>(
+  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
   lexer: &mut Lexer<'s>,
-) -> Result<&'t TyExpr<'s, 't, Position>, Error> {
+) -> Result<&'ty Ty<'s, 'ty>, Error> {
   let mut components = vec![read_ty_expr_2(ty_arena, lexer)?];
   loop {
     let lexer_clone = lexer.clone();
@@ -229,20 +230,20 @@ pub fn read_ty_expr_1<'s, 't>(
   }
   let mut ty = *components.last().unwrap();
   for component in components.iter().rev().skip(1) {
-    let new_ty = TyExpr(ty.0, TyExprF::Fun(component, ty));
+    let new_ty = Ty::Func(component, ty);
     ty = ty_arena.alloc(new_ty);
   }
   Ok(ty)
 }
 
-pub fn read_ty_expr_2<'s, 't>(
-  ty_arena: &'t Arena<TyExpr<'s, 't, Position>>,
+pub fn read_ty_expr_2<'s, 'ty>(
+  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
   lexer: &mut Lexer<'s>,
-) -> Result<&'t TyExpr<'s, 't, Position>, Error> {
+) -> Result<&'ty Ty<'s, 'ty>, Error> {
   let Lexeme(position, lexeme) = read_lexeme(lexer)?;
   match lexeme {
     LexemeF::Identifier(name) => {
-      let ty = TyExpr(position, TyExprF::Var(name));
+      let ty = Ty::Var(name);
       Ok(ty_arena.alloc(ty))
     },
     LexemeF::Forall => {
@@ -263,7 +264,7 @@ pub fn read_ty_expr_2<'s, 't>(
         _ => Err(Error(p, "expected 'end'")),
       })?;
 
-      let ty = TyExpr(position, TyExprF::All(name, inner));
+      let ty = Ty::Forall(name, inner);
       Ok(ty_arena.alloc(ty))
     },
     _ => Err(Error(position, "expected type")),

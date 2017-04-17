@@ -15,16 +15,6 @@ pub enum ExprF<'s, Ty, T> {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct TyExpr<'s: 'e, 'e, T: 'e>(pub T, pub TyExprF<'s, &'e TyExpr<'s, 'e, T>>);
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum TyExprF<'s, T> {
-  Var(&'s str),
-  Fun(T, T),
-  All(&'s str, T),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Literal<'s> {
   Bool(bool),
   Int(Rc<BigInt>),
