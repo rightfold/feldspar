@@ -169,6 +169,10 @@ impl<'a> Iterator for Lexer<'a> {
           Some(Ok(Lexeme(position, LexemeF::Str(value))))
         }
       },
+      Some('∀') => {
+        self.take_char();
+        Some(Ok(Lexeme(position, LexemeF::Forall)))
+      },
       Some(c) if is_identifier_start(c) => {
         let name = self.take_chars_while(is_identifier_continue);
         Some(Ok(Lexeme(position, match name {

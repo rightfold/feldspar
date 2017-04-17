@@ -1,6 +1,6 @@
 #!/usr/bin/env feldspar
 let
-  val compose : forall a, forall b, forall c, (b -> c) -> (a -> b) -> (a -> c) end end end
+  val compose : ∀ a, ∀ b, ∀ c, (b -> c) -> (a -> b) -> (a -> c)
     = fun f -> fun g -> fun x -> f (g x) end end end
   val print = compose (write% stdout%) to_utf8%
 in

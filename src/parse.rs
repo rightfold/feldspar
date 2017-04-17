@@ -259,11 +259,6 @@ pub fn read_ty_expr_2<'s, 'ty>(
 
       let inner = read_ty_expr(ty_arena, lexer)?;
 
-      read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-        LexemeF::End => Ok(()),
-        _ => Err(Error(p, "expected 'end'")),
-      })?;
-
       let ty = Ty::Forall(name, inner);
       Ok(ty_arena.alloc(ty))
     },

@@ -51,7 +51,7 @@ impl<'s, 'ty> Ty<'s, 'ty> {
       Ty::Skolem(ID(id)) =>
         write!(into, "!{}", id),
       Ty::Forall(name, inner) => {
-        write!(into, "forall {}, ", name)?;
+        write!(into, "∀ {}, ", name)?;
         inner.pretty(purge, into)?;
         write!(into, " end")?;
         Ok(())
