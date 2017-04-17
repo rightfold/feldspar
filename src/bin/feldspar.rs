@@ -64,7 +64,7 @@ unsafe fn main__() -> Result<(), AnyError>{
 
     let type_arena = Arena::new();
     let mut check = Check::new(&type_arena);
-    let ty = check.infer(&HashMap::new(), &expr).map_err(|err| {
+    let ty = check.infer(&HashMap::new(), &HashMap::new(), &expr).map_err(|err| {
       AnyError(match err {
         check::Error::Unify(a, b) =>
           "cannot unify type\n  ".to_string() +
@@ -74,6 +74,8 @@ unsafe fn main__() -> Result<(), AnyError>{
         check::Error::Var(name) =>
           "cannot find variable\n  ".to_string() +
           name,
+        check::Error::RankN =>
+          "higher-rank types are not yet supported".to_string()
       })
     })?;
     println!("{}", ty.pretty_string(&|t| check.purge(t)));

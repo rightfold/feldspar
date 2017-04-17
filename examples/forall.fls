@@ -5,5 +5,5 @@ let
   val print =
     fun s -> write% stdout% (to_utf8% s) end
 in
-  id print (id "Hello, world!")
+  print ("Hello, world!")
 end

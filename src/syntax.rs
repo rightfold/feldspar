@@ -8,8 +8,9 @@ pub struct Expr<'s: 'e, 'e, Ty: 'e, T: 'e>(pub T, pub ExprF<'s, Ty, &'e Expr<'s,
 pub enum ExprF<'s, Ty, T> {
   Lit(Literal<'s>),
   Var(&'s str),
-  Abs(&'s str, Option<Ty>, T),
+  Abs(&'s str, T),
   App(T, T),
+  Let(&'s str, Option<Ty>, T, T),
   Tup(Vec<T>),
 }
 

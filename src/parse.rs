@@ -89,7 +89,7 @@ pub fn read_expr_2<'s, 'e, 't>(
         _ => Err(Error(p, "expected `end`")),
       })?;
 
-      let expr = Expr(position, ExprF::Abs(name, None, body));
+      let expr = Expr(position, ExprF::Abs(name, body));
       Ok(arena.alloc(expr))
     },
     LexemeF::Let => {
@@ -150,9 +150,7 @@ pub fn read_expr_2<'s, 'e, 't>(
 
       let mut expr = body;
       for &(name, ty, value) in bindings.iter().rev() {
-        let abs = arena.alloc(Expr(position, ExprF::Abs(name, ty, expr)));
-        let app = arena.alloc(Expr(position, ExprF::App(abs, value)));
-        expr = app;
+        expr = arena.alloc(Expr(position, ExprF::Let(name, ty, value, expr)));
       }
       Ok(expr)
     },
@@ -296,7 +294,6 @@ mod test {
         Position::new(0, 1, 1),
         ExprF::Abs(
           "foo",
-          None,
           &Expr(
             Position::new(11, 1, 12),
             ExprF::Var("bar"),

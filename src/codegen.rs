@@ -28,7 +28,8 @@ impl<'s> Codegen<'s> {
     env: &HashMap<&str, usize>,
     captures: usize,
     body: &Expr<'s, 'e, Ty, T>,
-  ) -> ChunkID  {
+  ) -> ChunkID
+    where T: Clone {
     let mut insts = vec![];
     self.codegen_expr(env, body, &mut insts);
     insts.push(Inst::Return);
@@ -40,7 +41,7 @@ impl<'s> Codegen<'s> {
     env: &HashMap<&str, usize>,
     expr: &Expr<'s, 'e, Ty, T>,
     insts: &mut Vec<Inst>,
-  ) {
+  ) where T: Clone {
     match expr.1 {
       ExprF::Lit(ref lit) =>
         self.codegen_literal(lit, insts),
@@ -75,7 +76,7 @@ impl<'s> Codegen<'s> {
       },
       ExprF::Var(name) =>
         insts.push(Inst::GetLocal(env[name])),
-      ExprF::Abs(param, _, body) => {
+      ExprF::Abs(param, body) => {
         let mut body_env = HashMap::new();
         body_env.insert(param, 0);
         for (i, (k, &v)) in env.iter().enumerate() {
@@ -84,6 +85,11 @@ impl<'s> Codegen<'s> {
         }
         let chunk_id = self.codegen_func(&body_env, env.len(), body);
         insts.push(Inst::NewFunc(chunk_id));
+      },
+      ExprF::Let(name, _, value, body) => {
+        let abs = Expr(expr.0.clone(), ExprF::Abs(name, body));
+        let app = Expr(expr.0.clone(), ExprF::App(&abs, value));
+        self.codegen_expr(env, &app, insts);
       },
       ExprF::App(callee, argument) => {
         self.codegen_expr(env, callee, insts);
