@@ -67,5 +67,5 @@ When we attempt to execute this program, we will get a type error:
     with type
       str
 
-The mistake is that ``print`` already assumes a certain file description, so we
+The mistake is that ``print`` already assumes a certain file descriptor, so we
 need not pass one as an argument.
