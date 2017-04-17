@@ -80,7 +80,7 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
         self.call_stack.pop();
       }
       if let Some((callee, argument)) = state_diff.call {
-        let chunk = (self.get_chunk)(ChunkID(*callee.aux_usize()));
+        let chunk = (self.get_chunk)(ChunkID(*callee.aux_usize().unwrap()));
         self.call_stack.push(StackFrame{
           bytecode: &chunk.insts,
           pcounter: 0,
@@ -134,10 +134,10 @@ mod test {
       assert_eq!(thread.eval_stack[0].aux_count(), 0);
       assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().ptr_count(), 0);
       assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 4);
-      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), &1);
+      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), Some(&mut 1));
       assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().ptr_count(), 0);
       assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 4);
-      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), &0);
+      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), Some(&mut 0));
     }
   }
 
@@ -161,10 +161,10 @@ mod test {
       assert_eq!(thread.eval_stack[0].aux_count(), 0);
       assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().ptr_count(), 0);
       assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 4);
-      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), &1);
+      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), Some(&mut 1));
       assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().ptr_count(), 0);
       assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 4);
-      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), &0);
+      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), Some(&mut 0));
     }
   }
 }

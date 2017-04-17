@@ -43,19 +43,20 @@ impl<'a> Ref<'a> {
     slice::from_raw_parts_mut(fs_aux(self.lay), self.aux_count())
   }
 
-  unsafe fn aux_any<T>(&self) -> &mut T {
+  unsafe fn aux_any<T>(&self) -> Option<&mut T> {
     let aux = self.aux();
     if aux.len() != mem::size_of::<T>() {
-      panic!("Ref::aux_any: invalid aux size");
+      None
+    } else {
+      Some(mem::transmute::<*const u8, &mut T>(aux.as_ptr()))
     }
-    mem::transmute::<*const u8, &mut T>(aux.as_ptr())
   }
 
-  pub unsafe fn aux_i32(&self) -> &mut i32 {
+  pub unsafe fn aux_i32(&self) -> Option<&mut i32> {
     self.aux_any()
   }
 
-  pub unsafe fn aux_usize(&self) -> &mut usize {
+  pub unsafe fn aux_usize(&self) -> Option<&mut usize> {
     self.aux_any()
   }
 
@@ -99,13 +100,13 @@ impl GC {
 
   pub fn alloc_i32(&self, ptr_count: usize, aux: i32) -> Ref {
     let value = self.alloc(ptr_count, mem::size_of::<i32>());
-    unsafe { *value.aux_i32() = aux };
+    unsafe { *value.aux_i32().unwrap() = aux };
     value
   }
 
   pub fn alloc_usize(&self, ptr_count: usize, aux: usize) -> Ref {
     let value = self.alloc(ptr_count, mem::size_of::<usize>());
-    unsafe { *value.aux_usize() = aux };
+    unsafe { *value.aux_usize().unwrap() = aux };
     value
   }
 }

@@ -79,13 +79,13 @@ pub unsafe fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
 
       let status =
         libc::write(
-          *handle.aux_i32(),
+          *handle.aux_i32().unwrap(),
           mem::transmute(bytes.aux().as_ptr()),
           bytes.aux().len(),
         ) as i32;
 
       let result = gc.alloc(0, 4);
-      *result.aux_i32() = status;
+      *result.aux_i32().unwrap() = status;
       stack.push(result);
     },
   }
