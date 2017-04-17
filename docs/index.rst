@@ -1,20 +1,15 @@
-.. Feldspar documentation master file, created by
-   sphinx-quickstart on Mon Apr 17 18:25:31 2017.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+Feldspar
+========
 
-Welcome to Feldspar's documentation!
-====================================
+Feldspar is a programming language with the following goals:
+
+- All programs are referentially transparent
+- Type inference, higher-kinded types, and rank-N types
+- Very fast compiler, and no separate compilation step
+- Batteries included
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
 
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   install
+   first
