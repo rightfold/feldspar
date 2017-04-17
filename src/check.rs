@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::fmt;
-use syntax::{Expr, ExprF, Literal};
+use syntax::{Expr, ExprF, Literal, TyExpr};
 use typed_arena::Arena;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Error<'str, 'ty> {
+pub enum Error<'s, 'ty> {
   Unify(&'ty Ty<'ty>, &'ty Ty<'ty>),
-  Var(&'str str),
+  Var(&'s str),
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -102,8 +102,8 @@ impl<'ty> Check<'ty> {
     }
   }
 
-  pub fn unify<'str>(&mut self, ty: &'ty Ty<'ty>, uy: &'ty Ty<'ty>)
-    -> Result<(), Error<'str, 'ty>> {
+  pub fn unify<'s>(&mut self, ty: &'ty Ty<'ty>, uy: &'ty Ty<'ty>)
+    -> Result<(), Error<'s, 'ty>> {
     match (self.purge(ty), self.purge(uy)) {
       (&Ty::Deferred(ty_id), &Ty::Deferred(uy_id))
         if ty_id == uy_id =>
@@ -139,11 +139,11 @@ impl<'ty> Check<'ty> {
     }
   }
 
-  pub fn infer<'str, 'expr, T>(
+  pub fn infer<'s, 'e, 'te, T>(
     &mut self,
     env: &HashMap<&str, &'ty Ty<'ty>>,
-    expr: &Expr<'str, 'expr, T>,
-  ) -> Result<&'ty Ty<'ty>, Error<'str, 'ty>> {
+    expr: &Expr<'s, 'e, &'te TyExpr<'s, 'te, T>, T>,
+  ) -> Result<&'ty Ty<'ty>, Error<'s, 'ty>> {
     match expr.1 {
       ExprF::Lit(Literal::Bool(_)) => Ok(&TY_BOOL),
       ExprF::Lit(Literal::Int(_))  => Ok(&TY_INT),
@@ -152,7 +152,7 @@ impl<'ty> Check<'ty> {
       ExprF::Var("to_utf8%") => Ok(&BUILTIN_TO_UTF8_TY),
       ExprF::Var("write%")   => Ok(&BUILTIN_WRITE_TY),
       ExprF::Var(name) => env.get(&name).map(|&ty| ty).ok_or(Error::Var(name)),
-      ExprF::Abs(param, body) => {
+      ExprF::Abs(param, _, body) => {
         let param_ty = self.fresh();
 
         let mut body_env = env.clone();

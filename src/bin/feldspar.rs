@@ -56,8 +56,8 @@ unsafe fn main__() -> Result<(), AnyError>{
   File::open(&args[1])?.read_to_string(&mut source)?;
 
   let (codegen, insts) = {
-    let expr_arena = Arena::new();
     let ty_expr_arena = Arena::new();
+    let expr_arena = Arena::new();
     let mut lexer = Lexer::new(&source);
     let expr = parse::read_expr(&expr_arena, &ty_expr_arena, &mut lexer)?;
     println!("{:?}", expr);

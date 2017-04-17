@@ -23,11 +23,11 @@ impl<'s> Codegen<'s> {
     ChunkID(self.chunks.len() - 1)
   }
 
-  pub fn codegen_func<'e, T>(
+  pub fn codegen_func<'e, Ty, T>(
     &mut self,
     env: &HashMap<&str, usize>,
     captures: usize,
-    body: &Expr<'s, 'e, T>,
+    body: &Expr<'s, 'e, Ty, T>,
   ) -> ChunkID  {
     let mut insts = vec![];
     self.codegen_expr(env, body, &mut insts);
@@ -35,10 +35,10 @@ impl<'s> Codegen<'s> {
     self.new_chunk(1 + captures, captures, insts)
   }
 
-  pub fn codegen_expr<'e, T>(
+  pub fn codegen_expr<'e, Ty, T>(
     &mut self,
     env: &HashMap<&str, usize>,
-    expr: &Expr<'s, 'e, T>,
+    expr: &Expr<'s, 'e, Ty, T>,
     insts: &mut Vec<Inst>,
   ) {
     match expr.1 {
@@ -75,7 +75,7 @@ impl<'s> Codegen<'s> {
       },
       ExprF::Var(name) =>
         insts.push(Inst::GetLocal(env[name])),
-      ExprF::Abs(param, body) => {
+      ExprF::Abs(param, _, body) => {
         let mut body_env = HashMap::new();
         body_env.insert(param, 0);
         for (i, (k, &v)) in env.iter().enumerate() {
