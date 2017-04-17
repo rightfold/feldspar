@@ -1,0 +1,5 @@
+fun compose ->
+  fun print ->
+    print "Hello, world!"
+  end (compose (write# stdout#) to_utf8#)
+end fun f -> fun g -> fun x -> f (g x) end end end
