@@ -38,16 +38,14 @@ pub unsafe fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
       let callee = stack.pop().unwrap();
       state_diff.call = Some((callee, argument));
     },
-    Inst::Return => state_diff.return_ = true,
+    Inst::Return =>
+      state_diff.return_ = true,
 
-    Inst::Pop => {
-      stack.pop();
-    },
+    Inst::Pop =>
+      drop(stack.pop()),
 
-    Inst::GetLocal(offset) => {
-      let value = locals[offset].clone();
-      stack.push(value);
-    },
+    Inst::GetLocal(offset) =>
+      stack.push(locals[offset].clone()),
 
     Inst::New(ptr_count, aux_count) => {
       let new = gc.alloc(ptr_count, aux_count);
@@ -70,8 +68,7 @@ pub unsafe fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
     },
     Inst::NewFunc(chunk_id) => {
       let chunk = get_chunk(chunk_id);
-      let aux_count = mem::size_of::<usize>();
-      let new = gc.alloc(chunk.captures, aux_count);
+      let new = gc.alloc(chunk.captures, mem::size_of::<usize>());
       for offset in (0 .. chunk.captures).rev() {
         let ptr = stack.pop().unwrap();
         new.set_ptr(offset, &ptr);
