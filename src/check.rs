@@ -85,11 +85,7 @@ pub struct Check<'ty> {
 
 impl<'ty> Check<'ty> {
   pub fn new(arena: &'ty Arena<Ty<'ty>>) -> Self {
-    Check{
-      arena: arena,
-      next_id: 0,
-      solved: HashMap::new(),
-    }
+    Check{arena: arena, next_id: 0, solved: HashMap::new()}
   }
 
   pub fn fresh(&mut self) -> &'ty Ty<'ty> {
@@ -103,13 +99,10 @@ impl<'ty> Check<'ty> {
   }
 
   pub fn purge(&self, ty: &'ty Ty<'ty>) -> &'ty Ty<'ty> {
-    match ty {
-      &Ty::Deferred(id) =>
-        match self.solved.get(&id) {
-          Some(uy) => self.purge(uy),
-          None => ty,
-        },
-      _ => ty,
+    if let &Ty::Deferred(id) = ty {
+      self.solved.get(&id).map(|uy| self.purge(uy)).unwrap_or(ty)
+    } else {
+      ty
     }
   }
 
@@ -132,14 +125,10 @@ impl<'ty> Check<'ty> {
         self.unify(ty_b, uy_b)?;
         Ok(())
       },
-      (&Ty::Bool, &Ty::Bool) =>
-        Ok(()),
-      (&Ty::Int, &Ty::Int) =>
-        Ok(()),
-      (&Ty::Str, &Ty::Str) =>
-        Ok(()),
-      (&Ty::Bytes, &Ty::Bytes) =>
-        Ok(()),
+      (&Ty::Bool,  &Ty::Bool)  => Ok(()),
+      (&Ty::Int,   &Ty::Int)   => Ok(()),
+      (&Ty::Str,   &Ty::Str)   => Ok(()),
+      (&Ty::Bytes, &Ty::Bytes) => Ok(()),
       (&Ty::Tuple(ref elem_tys), &Ty::Tuple(ref elem_uys)) => {
         if elem_tys.len() != elem_uys.len() {
           Err(Error::Unify(&TY_BOOL, &TY_INT)) // FIXME: Tuple types.
@@ -150,9 +139,7 @@ impl<'ty> Check<'ty> {
           Ok(())
         }
       },
-      (a, b) => {
-        Err(Error::Unify(a, b))
-      },
+      (a, b) => Err(Error::Unify(a, b))
     }
   }
 
@@ -168,11 +155,7 @@ impl<'ty> Check<'ty> {
       ExprF::Var("stdout#")  => Ok(&BUILTIN_STDOUT_TY),
       ExprF::Var("to_utf8#") => Ok(&BUILTIN_TO_UTF8_TY),
       ExprF::Var("write#")   => Ok(&BUILTIN_WRITE_TY),
-      ExprF::Var(name) =>
-        match env.get(&name) {
-          Some(ty) => Ok(ty),
-          None => Err(Error::Var(name)),
-        },
+      ExprF::Var(name) => env.get(&name).map(|&ty| ty).ok_or(Error::Var(name)),
       ExprF::Abs(param, body) => {
         let param_ty = self.fresh();
 
