@@ -1,0 +1,9 @@
+#!/usr/bin/env feldspar
+let
+  val id : forall a, a -> a end =
+    fun x -> x end
+  val print =
+    fun s -> write% stdout% (to_utf8% s) end
+in
+  id print (id "Hello, world!")
+end

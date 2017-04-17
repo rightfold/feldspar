@@ -57,8 +57,9 @@ unsafe fn main__() -> Result<(), AnyError>{
 
   let (codegen, insts) = {
     let expr_arena = Arena::new();
+    let ty_expr_arena = Arena::new();
     let mut lexer = Lexer::new(&source);
-    let expr = parse::read_expr(&expr_arena, &mut lexer)?;
+    let expr = parse::read_expr(&expr_arena, &ty_expr_arena, &mut lexer)?;
     println!("{:?}", expr);
 
     let type_arena = Arena::new();
