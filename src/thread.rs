@@ -1,4 +1,4 @@
-use bytecode::{Chunk, Inst};
+use bytecode::{Chunk, ChunkID, Inst, StrID};
 use interpret::{Jump, interpret};
 use value::{GC, Ref};
 
@@ -24,8 +24,8 @@ pub enum Status {
 
 impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
   where
-    GetStr: Fn(usize) -> &'str str,
-    GetChunk: Fn(usize) -> &'chunk Chunk {
+    GetStr: Fn(StrID) -> &'str str,
+    GetChunk: Fn(ChunkID) -> &'chunk Chunk {
   pub fn new(
     gc: &'gc GC,
     get_str: GetStr,
@@ -80,7 +80,7 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
         self.call_stack.pop();
       }
       if let Some((callee, argument)) = state_diff.call {
-        let chunk = (self.get_chunk)(*callee.aux_usize());
+        let chunk = (self.get_chunk)(ChunkID(*callee.aux_usize()));
         self.call_stack.push(StackFrame{
           bytecode: &chunk.insts,
           pcounter: 0,
@@ -119,7 +119,7 @@ mod test {
       let gc = GC::new();
       let bytecode = [
         Inst::NewI32(1),
-        Inst::NewFunc(0),
+        Inst::NewFunc(ChunkID(0)),
         Inst::NewI32(0),
         Inst::Call,
         Inst::Return,

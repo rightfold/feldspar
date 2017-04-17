@@ -1,3 +1,9 @@
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct StrID(pub usize);
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct ChunkID(pub usize);
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Chunk {
   pub insts: Vec<Inst>,
@@ -18,8 +24,8 @@ pub enum Inst {
 
   New(usize, usize),
   NewI32(i32),
-  NewStr(usize),
-  NewFunc(usize),
+  NewStr(StrID),
+  NewFunc(ChunkID),
 
   Write,
 }

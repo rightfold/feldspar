@@ -1,26 +1,18 @@
-use bytecode::{Chunk, Inst};
+use bytecode::{Chunk, ChunkID, Inst, StrID};
 use std::collections::HashMap;
 use syntax::{Expr, ExprF, Literal};
 
 pub struct Codegen<'str> {
-  next_str_id: usize,
-  strs: HashMap<usize, &'str str>,
-
+  pub strs: Vec<&'str str>,
   pub chunks: Vec<Chunk>,
 }
 
 impl<'str> Codegen<'str> {
   pub fn new() -> Self {
     Codegen{
-      next_str_id: 0,
-      strs: HashMap::new(),
-
+      strs: vec![],
       chunks: vec![],
     }
-  }
-
-  pub fn strs(&self) -> &HashMap<usize, &'str str> {
-    &self.strs
   }
 
   fn codegen_func_bytecode(
@@ -28,13 +20,13 @@ impl<'str> Codegen<'str> {
     locals: usize,
     captures: usize,
     insts: Vec<Inst>,
-  ) -> usize {
+  ) -> ChunkID {
     self.chunks.push(Chunk{
       insts: insts,
       locals: locals,
       captures: captures,
     });
-    self.chunks.len() - 1
+    ChunkID(self.chunks.len() - 1)
   }
 
   pub fn codegen_func<'expr, T>(
@@ -42,7 +34,7 @@ impl<'str> Codegen<'str> {
     env: &HashMap<&str, usize>,
     captures: usize,
     body: &Expr<'str, 'expr, T>,
-  ) -> usize {
+  ) -> ChunkID  {
     let mut insts = vec![];
     self.codegen_expr(env, body, &mut insts);
     insts.push(Inst::Return);
@@ -51,7 +43,7 @@ impl<'str> Codegen<'str> {
       locals: 1 + captures,
       captures: captures,
     });
-    self.chunks.len() - 1
+    ChunkID(self.chunks.len() - 1)
   }
 
   pub fn codegen_expr<'expr, T>(
@@ -129,9 +121,8 @@ impl<'str> Codegen<'str> {
       Literal::Bool(value) =>
         insts.push(Inst::NewI32(value as i32)),
       Literal::Str(value) => {
-        let id = self.next_str_id;
-        self.next_str_id += 1;
-        self.strs.insert(id, value);
+        self.strs.push(value);
+        let id = StrID(self.strs.len() - 1);
         insts.push(Inst::NewStr(id));
       },
       _ => panic!("codegen_literal: NYI"),

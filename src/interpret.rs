@@ -1,4 +1,4 @@
-use bytecode::{Chunk, Inst};
+use bytecode::{Chunk, ChunkID, Inst, StrID};
 use libc;
 use std::mem;
 use value::{GC, Ref};
@@ -23,8 +23,8 @@ pub unsafe fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
   inst: &Inst,
 ) -> StateDiff<'gc>
   where
-    GetStr: Fn(usize) -> &'str str,
-    GetChunk: Fn(usize) -> &'chunk Chunk {
+    GetStr: Fn(StrID) -> &'str str,
+    GetChunk: Fn(ChunkID) -> &'chunk Chunk {
   let mut state_diff = StateDiff{
     jump: Jump::Relative(1),
     return_: false,
@@ -76,7 +76,7 @@ pub unsafe fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
         let ptr = stack.pop().unwrap();
         new.set_ptr(offset, &ptr);
       }
-      *new.aux_usize() = chunk_id;
+      *new.aux_usize() = chunk_id.0;
       stack.push(new);
     },
 
