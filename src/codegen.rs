@@ -2,62 +2,43 @@ use bytecode::{Chunk, ChunkID, Inst, StrID};
 use std::collections::HashMap;
 use syntax::{Expr, ExprF, Literal};
 
-pub struct Codegen<'str> {
-  strs: Vec<&'str str>,
+pub struct Codegen<'s> {
+  strs: Vec<&'s str>,
   chunks: Vec<Chunk>,
 }
 
-impl<'str> Codegen<'str> {
-  pub fn new() -> Self {
-    Codegen{
-      strs: vec![],
-      chunks: vec![],
-    }
+impl<'s> Codegen<'s> {
+  pub fn new() -> Self { Codegen{strs: vec![], chunks: vec![]} }
+
+  pub fn str(&self, id: StrID) -> &'s str { self.strs[id.0] }
+  pub fn chunk(&self, id: ChunkID) -> &Chunk { &self.chunks[id.0] }
+
+  fn new_str(&mut self, str: &'s str) -> StrID {
+    self.strs.push(str);
+    StrID(self.strs.len() - 1)
   }
 
-  pub fn str(&self, id: StrID) -> &'str str {
-    self.strs[id.0]
-  }
-
-  pub fn chunk(&self, id: ChunkID) -> &Chunk {
-    &self.chunks[id.0]
-  }
-
-  fn codegen_func_bytecode(
-    &mut self,
-    locals: usize,
-    captures: usize,
-    insts: Vec<Inst>,
-  ) -> ChunkID {
-    self.chunks.push(Chunk{
-      insts: insts,
-      locals: locals,
-      captures: captures,
-    });
+  fn new_chunk(&mut self, locals: usize, captures: usize, insts: Vec<Inst>) -> ChunkID {
+    self.chunks.push(Chunk{insts: insts, locals: locals, captures: captures});
     ChunkID(self.chunks.len() - 1)
   }
 
-  pub fn codegen_func<'expr, T>(
+  pub fn codegen_func<'e, T>(
     &mut self,
     env: &HashMap<&str, usize>,
     captures: usize,
-    body: &Expr<'str, 'expr, T>,
+    body: &Expr<'s, 'e, T>,
   ) -> ChunkID  {
     let mut insts = vec![];
     self.codegen_expr(env, body, &mut insts);
     insts.push(Inst::Return);
-    self.chunks.push(Chunk{
-      insts: insts,
-      locals: 1 + captures,
-      captures: captures,
-    });
-    ChunkID(self.chunks.len() - 1)
+    self.new_chunk(1 + captures, captures, insts)
   }
 
-  pub fn codegen_expr<'expr, T>(
+  pub fn codegen_expr<'e, T>(
     &mut self,
     env: &HashMap<&str, usize>,
-    expr: &Expr<'str, 'expr, T>,
+    expr: &Expr<'s, 'e, T>,
     insts: &mut Vec<Inst>,
   ) {
     match expr.1 {
@@ -66,36 +47,34 @@ impl<'str> Codegen<'str> {
       ExprF::Var("stdout#") => // TODO: Move to feldspar::builtin
         insts.push(Inst::NewI32(1)),
       ExprF::Var("to_utf8#") => { // TODO: Move to feldspar::builtin
-        let chunk_id = self.codegen_func_bytecode(1, 0, vec![
+        let chunk_id = self.new_chunk(1, 0, vec![
           Inst::GetLocal(0),
           Inst::Return,
         ]);
         insts.push(Inst::NewFunc(chunk_id));
       },
       ExprF::Var("write#") => { // TODO: Move to feldspar::builtin
-        let action_chunk_id = self.codegen_func_bytecode(3, 2, vec![
+        let action_chunk_id = self.new_chunk(3, 2, vec![
           Inst::GetLocal(1), // handle
           Inst::GetLocal(2), // bytes
           Inst::Write,
           Inst::Return,
         ]);
-        let curry2_chunk_id = self.codegen_func_bytecode(2, 1, vec![
+        let curry2_chunk_id = self.new_chunk(2, 1, vec![
           Inst::GetLocal(0), // bytes
           Inst::GetLocal(1), // handle
           Inst::NewFunc(action_chunk_id),
           Inst::Return,
         ]);
-        let curry1_chunk_id = self.codegen_func_bytecode(1, 0, vec![
+        let curry1_chunk_id = self.new_chunk(1, 0, vec![
           Inst::GetLocal(0), // handle
           Inst::NewFunc(curry2_chunk_id),
           Inst::Return,
         ]);
         insts.push(Inst::NewFunc(curry1_chunk_id));
       },
-      ExprF::Var(name) => {
-        let offset = env[name];
-        insts.push(Inst::GetLocal(offset));
-      },
+      ExprF::Var(name) =>
+        insts.push(Inst::GetLocal(env[name])),
       ExprF::Abs(param, body) => {
         let mut body_env = HashMap::new();
         body_env.insert(param, 0);
@@ -120,19 +99,12 @@ impl<'str> Codegen<'str> {
     }
   }
 
-  pub fn codegen_literal(
-    &mut self,
-    lit: &Literal<'str>,
-    insts: &mut Vec<Inst>,
-  ) {
+  pub fn codegen_literal(&mut self, lit: &Literal<'s>, insts: &mut Vec<Inst>) {
     match *lit {
       Literal::Bool(value) =>
         insts.push(Inst::NewI32(value as i32)),
-      Literal::Str(value) => {
-        self.strs.push(value);
-        let id = StrID(self.strs.len() - 1);
-        insts.push(Inst::NewStr(id));
-      },
+      Literal::Str(value) =>
+        insts.push(Inst::NewStr(self.new_str(value))),
       _ => panic!("codegen_literal: NYI"),
     }
   }

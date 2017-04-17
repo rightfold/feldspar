@@ -7,7 +7,6 @@ use feldspar::check;
 use feldspar::codegen::Codegen;
 use feldspar::lex::Lexer;
 use feldspar::parse;
-use feldspar::builtin;
 use feldspar::thread::Thread;
 use feldspar::value::GC;
 use std::collections::HashMap;
@@ -63,7 +62,7 @@ unsafe fn main__() -> Result<(), AnyError>{
 
   let type_arena = Arena::new();
   let mut check = Check::new(&type_arena);
-  let ty = check.infer(&builtin::env(&type_arena), &expr).map_err(|err| {
+  let ty = check.infer(&HashMap::new(), &expr).map_err(|err| {
     AnyError(match err {
       check::Error::Unify(a, b) =>
         "cannot unify type\n  ".to_string() +

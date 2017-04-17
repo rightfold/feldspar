@@ -2,7 +2,6 @@ extern crate libc;
 extern crate num;
 extern crate typed_arena;
 
-pub mod builtin;
 pub mod bytecode;
 pub mod check;
 pub mod codegen;

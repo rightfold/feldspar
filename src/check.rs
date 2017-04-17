@@ -28,6 +28,11 @@ pub static TY_INT:   Ty<'static> = Ty::Int;
 pub static TY_STR:   Ty<'static> = Ty::Str;
 pub static TY_BYTES: Ty<'static> = Ty::Bytes;
 
+pub static BUILTIN_STDOUT_TY:  Ty<'static> = Ty::Int;
+pub static BUILTIN_TO_UTF8_TY: Ty<'static> = Ty::Func(&TY_STR, &TY_BYTES);
+pub static BUILTIN_WRITE_TY:   Ty<'static> =
+  Ty::Func(&TY_INT, &Ty::Func(&TY_BYTES, &TY_INT)); // FIXME: Return io int.
+
 impl<'ty> Ty<'ty> {
   pub fn pretty<Purge, W>(&'ty self, purge: &Purge, into: &mut W) -> fmt::Result
     where
@@ -157,12 +162,12 @@ impl<'ty> Check<'ty> {
     expr: &Expr<'str, 'expr, T>,
   ) -> Result<&'ty Ty<'ty>, Error<'str, 'ty>> {
     match expr.1 {
-      ExprF::Lit(Literal::Bool(_)) =>
-        Ok(&TY_BOOL),
-      ExprF::Lit(Literal::Int(_)) =>
-        Ok(&TY_INT),
-      ExprF::Lit(Literal::Str(_)) =>
-        Ok(&TY_STR),
+      ExprF::Lit(Literal::Bool(_)) => Ok(&TY_BOOL),
+      ExprF::Lit(Literal::Int(_))  => Ok(&TY_INT),
+      ExprF::Lit(Literal::Str(_))  => Ok(&TY_STR),
+      ExprF::Var("stdout#")  => Ok(&BUILTIN_STDOUT_TY),
+      ExprF::Var("to_utf8#") => Ok(&BUILTIN_TO_UTF8_TY),
+      ExprF::Var("write#")   => Ok(&BUILTIN_WRITE_TY),
       ExprF::Var(name) =>
         match env.get(&name) {
           Some(ty) => Ok(ty),
