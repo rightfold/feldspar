@@ -228,27 +228,38 @@ impl<'s, 'ty> Check<'s, 'ty> {
 
   pub fn monomorphize(&mut self, ty: &'ty Ty<'s, 'ty>)
     -> Result<&'ty Ty<'s, 'ty>, Error<'s, 'ty>> {
-    Self::replace_ty_vars(self.arena, ty, || self.fresh_unify())
+    Self::replace_ty_vars(
+      self.arena,
+      &mut || self.fresh_unify(),
+      &HashMap::new(),
+      ty,
+    )
   }
 
   pub fn skolemize(&mut self, ty: &'ty Ty<'s, 'ty>)
     -> Result<&'ty Ty<'s, 'ty>, Error<'s, 'ty>> {
-    Self::replace_ty_vars(self.arena, ty, || self.fresh_skolem())
+    Self::replace_ty_vars(
+      self.arena,
+      &mut || self.fresh_skolem(),
+      &HashMap::new(),
+      ty,
+    )
   }
 
   fn replace_ty_vars<Fresh>(
     arena: &'ty Arena<Ty<'s, 'ty>>,
+    fresh: &mut Fresh,
+    ty_env: &HashMap<&str, &'ty Ty<'s, 'ty>>,
     ty: &'ty Ty<'s, 'ty>,
-    mut fresh: Fresh,
   ) -> Result<&'ty Ty<'s, 'ty>, Error<'s, 'ty>>
     where Fresh: FnMut() -> &'ty Ty<'s, 'ty> {
     match *ty {
       Ty::Forall(name, inner) => {
-        let mut ty_env = HashMap::new();
-        ty_env.insert(name, fresh());
-        Self::replace_ty_vars_no_forall(arena, &ty_env, inner)
+        let mut inner_ty_env = ty_env.clone();
+        inner_ty_env.insert(name, fresh());
+        Self::replace_ty_vars(arena, fresh, &inner_ty_env, inner)
       },
-      _ => Self::replace_ty_vars_no_forall(arena, &HashMap::new(), ty),
+      _ => Self::replace_ty_vars_no_forall(arena, ty_env, ty),
     }
   }
 
