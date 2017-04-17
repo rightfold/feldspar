@@ -148,9 +148,9 @@ impl<'ty> Check<'ty> {
       ExprF::Lit(Literal::Bool(_)) => Ok(&TY_BOOL),
       ExprF::Lit(Literal::Int(_))  => Ok(&TY_INT),
       ExprF::Lit(Literal::Str(_))  => Ok(&TY_STR),
-      ExprF::Var("stdout#")  => Ok(&BUILTIN_STDOUT_TY),
-      ExprF::Var("to_utf8#") => Ok(&BUILTIN_TO_UTF8_TY),
-      ExprF::Var("write#")   => Ok(&BUILTIN_WRITE_TY),
+      ExprF::Var("stdout%")  => Ok(&BUILTIN_STDOUT_TY),
+      ExprF::Var("to_utf8%") => Ok(&BUILTIN_TO_UTF8_TY),
+      ExprF::Var("write%")   => Ok(&BUILTIN_WRITE_TY),
       ExprF::Var(name) => env.get(&name).map(|&ty| ty).ok_or(Error::Var(name)),
       ExprF::Abs(param, body) => {
         let param_ty = self.fresh();

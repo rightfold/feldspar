@@ -1,1 +1,2 @@
-write# stdout# (to_utf8# "Hello, world!")
+#!/usr/bin/env feldspar
+write% stdout% (to_utf8% "Hello, world!")

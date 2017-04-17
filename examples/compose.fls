@@ -1,6 +1,7 @@
+#!/usr/bin/env feldspar
 let
   val compose = fun f -> fun g -> fun x -> f (g x) end end end
-  val print = compose (write# stdout#) to_utf8#
+  val print = compose (write% stdout%) to_utf8%
 in
   print "Hello, world!"
 end

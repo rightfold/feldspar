@@ -1,3 +1,4 @@
+#!/usr/bin/env feldspar
 fun x ->
-  write# stdout# (to_utf8# "")
+  write% stdout% (to_utf8% "")
 end {false, "",}
