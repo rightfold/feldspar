@@ -49,14 +49,10 @@ impl<'ty> Ty<'ty> {
         write!(into, ")")?;
         Ok(())
       },
-      Ty::Bool =>
-        write!(into, "bool"),
-      Ty::Int =>
-        write!(into, "int"),
-      Ty::Str =>
-        write!(into, "str"),
-      Ty::Bytes =>
-        write!(into, "bytes"),
+      Ty::Bool =>  write!(into, "bool"),
+      Ty::Int =>   write!(into, "int"),
+      Ty::Str =>   write!(into, "str"),
+      Ty::Bytes => write!(into, "bytes"),
       Ty::Tuple(ref elem_tys) => {
         write!(into, "{{")?;
         for elem_ty in elem_tys {
