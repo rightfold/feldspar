@@ -53,7 +53,7 @@ impl<'s, 'ty> Ty<'s, 'ty> {
       Ty::Forall(name, inner) => {
         write!(into, "forall {}, ", name)?;
         inner.pretty(purge, into)?;
-        write!(into, "end")?;
+        write!(into, " end")?;
         Ok(())
       },
       Ty::Func(a, b) => {
@@ -99,7 +99,7 @@ impl<'s, 'ty> Check<'s, 'ty> {
     Check{arena: arena, next_id: 0, solved: HashMap::new()}
   }
 
-  pub fn fresh(&mut self) -> &'ty Ty<'s, 'ty> {
+  pub fn fresh_unify(&mut self) -> &'ty Ty<'s, 'ty> {
     let ty = self.arena.alloc(Ty::Deferred(ID(self.next_id)));
     self.next_id += 1;
     ty
@@ -173,9 +173,12 @@ impl<'s, 'ty> Check<'s, 'ty> {
       ExprF::Var("stdout%")  => Ok(&BUILTIN_STDOUT_TY),
       ExprF::Var("to_utf8%") => Ok(&BUILTIN_TO_UTF8_TY),
       ExprF::Var("write%")   => Ok(&BUILTIN_WRITE_TY),
-      ExprF::Var(name) => env.get(&name).map(|&ty| ty).ok_or(Error::Var(name)),
+      ExprF::Var(name) => {
+        let poly_ty = env.get(&name).map(|&ty| ty).ok_or(Error::Var(name))?;
+        self.monomorphize(poly_ty)
+      },
       ExprF::Abs(param, body) => {
-        let param_ty = self.fresh();
+        let param_ty = self.fresh_unify();
 
         let mut body_env = env.clone();
         body_env.insert(param, param_ty);
@@ -188,7 +191,7 @@ impl<'s, 'ty> Check<'s, 'ty> {
         let callee_ty = self.infer(env, callee)?;
         let argument_ty = self.infer(env, argument)?;
 
-        let result_ty = self.fresh();
+        let result_ty = self.fresh_unify();
         let func_ty = self.arena.alloc(Ty::Func(argument_ty, result_ty));
         self.unify(callee_ty, func_ty)?;
 
@@ -223,22 +226,34 @@ impl<'s, 'ty> Check<'s, 'ty> {
     }
   }
 
-  pub fn skolemize(
-    &mut self,
+  pub fn monomorphize(&mut self, ty: &'ty Ty<'s, 'ty>)
+    -> Result<&'ty Ty<'s, 'ty>, Error<'s, 'ty>> {
+    Self::replace_ty_vars(self.arena, ty, || self.fresh_unify())
+  }
+
+  pub fn skolemize(&mut self, ty: &'ty Ty<'s, 'ty>)
+    -> Result<&'ty Ty<'s, 'ty>, Error<'s, 'ty>> {
+    Self::replace_ty_vars(self.arena, ty, || self.fresh_skolem())
+  }
+
+  fn replace_ty_vars<Fresh>(
+    arena: &'ty Arena<Ty<'s, 'ty>>,
     ty: &'ty Ty<'s, 'ty>,
-  ) -> Result<&'ty Ty<'s, 'ty>, Error<'s, 'ty>> {
+    mut fresh: Fresh,
+  ) -> Result<&'ty Ty<'s, 'ty>, Error<'s, 'ty>>
+    where Fresh: FnMut() -> &'ty Ty<'s, 'ty> {
     match *ty {
       Ty::Forall(name, inner) => {
         let mut ty_env = HashMap::new();
-        ty_env.insert(name, self.fresh_skolem());
-        self.skolemize_no_forall(&ty_env, inner)
+        ty_env.insert(name, fresh());
+        Self::replace_ty_vars_no_forall(arena, &ty_env, inner)
       },
-      _ => self.skolemize_no_forall(&HashMap::new(), ty),
+      _ => Self::replace_ty_vars_no_forall(arena, &HashMap::new(), ty),
     }
   }
 
-  pub fn skolemize_no_forall(
-    &mut self,
+  fn replace_ty_vars_no_forall(
+    arena: &'ty Arena<Ty<'s, 'ty>>,
     ty_env: &HashMap<&str, &'ty Ty<'s, 'ty>>,
     ty: &'ty Ty<'s, 'ty>,
   ) -> Result<&'ty Ty<'s, 'ty>, Error<'s, 'ty>> {
@@ -248,10 +263,10 @@ impl<'s, 'ty> Check<'s, 'ty> {
       Ty::Skolem(_)      => Ok(ty),
       Ty::Forall(_, _)   => Err(Error::RankN),
       Ty::Func(from, to) => {
-        let from_ty = self.skolemize_no_forall(ty_env, from)?;
-        let to_ty = self.skolemize_no_forall(ty_env, to)?;
+        let from_ty = Self::replace_ty_vars_no_forall(arena, ty_env, from)?;
+        let to_ty = Self::replace_ty_vars_no_forall(arena, ty_env, to)?;
         let ty = Ty::Func(from_ty, to_ty);
-        Ok(self.arena.alloc(ty))
+        Ok(arena.alloc(ty))
       },
       Ty::Bool  => Ok(ty),
       Ty::Int   => Ok(ty),
@@ -273,10 +288,10 @@ mod test {
 
     let ty1 = &TY_BOOL;
     let ty2 = arena.alloc(Ty::Func(ty1, ty1));
-    let ty3 = check.fresh();
-    let ty4 = check.fresh();
-    let ty5 = check.fresh();
-    let ty6 = check.fresh();
+    let ty3 = check.fresh_unify();
+    let ty4 = check.fresh_unify();
+    let ty5 = check.fresh_unify();
+    let ty6 = check.fresh_unify();
 
     assert_eq!(check.unify(ty1, ty1), Ok(()));
 
