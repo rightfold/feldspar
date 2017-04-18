@@ -4,5 +4,6 @@ version = "0.0.2"
 
 [dependencies]
 libc = "0.2.21"
+nom = "2.2.1"
 num = "0.1.37"
 typed-arena = "1.2.0"
