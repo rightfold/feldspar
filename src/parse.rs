@@ -1,276 +1,168 @@
-use check::Ty;
-use lex::{Lexeme, LexemeF, Lexer, Position};
-use syntax::{Expr, ExprF, Literal};
+use nom::{ErrorKind, IResult, Needed};
+use pos::Pos;
+use std::cell::RefCell;
+use std::vec::Drain;
+use syntax::Expr::*;
+use syntax::Expr;
 use typed_arena::Arena;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Error(pub Position, pub &'static str);
+pub mod lex {
+  use super::*;
 
-fn read_lexeme<'s>(lexer: &mut Lexer<'s>)
-  -> Result<Lexeme<'s, Position>, Error> {
-  match lexer.next() {
-    None => Err(Error(lexer.next_position(), "unexpected EOF")),
-    Some(Err(position)) => Err(Error(position, "unexpected input")),
-    Some(Ok(lexeme)) => Ok(lexeme),
-  }
-}
-
-fn read_lexeme_if<'s, T, F>(lexer: &mut Lexer<'s>, pred: F)
-  -> Result<T, Error>
-  where F: FnOnce(Lexeme<'s, Position>) -> Result<T, Error> {
-  let lexeme = read_lexeme(lexer)?;
-  pred(lexeme)
-}
-
-fn peek_lexeme<'s>(lexer: &Lexer<'s>)
-  -> Result<Lexeme<'s, Position>, Error> {
-  read_lexeme(&mut lexer.clone())
-}
-
-pub fn read_expr<'s, 'e, 'ty>(
-  arena: &'e Arena<Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>>,
-  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
-  lexer: &mut Lexer<'s>,
-) -> Result<&'e Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>, Error> {
-  read_expr_1(arena, ty_arena, lexer)
-}
-
-pub fn read_expr_1<'s, 'e, 'ty>(
-  arena: &'e Arena<Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>>,
-  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
-  lexer: &mut Lexer<'s>,
-) -> Result<&'e Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>, Error> {
-  let mut callee = read_expr_2(arena, ty_arena, lexer)?;
-  loop {
-    let lexer_clone = lexer.clone();
-    match read_expr_2(arena, ty_arena, lexer) {
-      Ok(argument) => {
-        let call = Expr(callee.0, ExprF::App(callee, argument));
-        callee = arena.alloc(call);
-      },
-      Err(_) => {
-        lexer.clone_from(&lexer_clone);
-        break;
-      },
+  fn space(i: &str) -> IResult<&str, ()> {
+    let mut chars = i.chars();
+    match chars.next() {
+      Some(c) if c.is_whitespace() => IResult::Done(chars.as_str(), ()),
+      Some('#') => map!(i, take_until!("\n"), |_| ()),
+      Some(_) => IResult::Error(ErrorKind::Custom(0)),
+      None => IResult::Incomplete(Needed::Size(1)),
     }
   }
-  Ok(callee)
-}
 
-pub fn read_expr_2<'s, 'e, 'ty>(
-  arena: &'e Arena<Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>>,
-  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
-  lexer: &mut Lexer<'s>,
-) -> Result<&'e Expr<'s, 'e, &'ty Ty<'s, 'ty>, Position>, Error> {
-  let Lexeme(position, lexeme) = read_lexeme(lexer)?;
-  match lexeme {
-    LexemeF::Identifier(name) => {
-      let expr = Expr(position, ExprF::Var(name));
-      Ok(arena.alloc(expr))
-    },
-    LexemeF::False =>
-      Ok(arena.alloc(Expr(position, ExprF::Lit(Literal::Bool(false))))),
-    LexemeF::True =>
-      Ok(arena.alloc(Expr(position, ExprF::Lit(Literal::Bool(true))))),
-    LexemeF::Fun => {
-      let name = read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-        LexemeF::Identifier(name) => Ok(name),
-        _ => Err(Error(p, "expected lambda parameter")),
-      })?;
-
-      read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-        LexemeF::Arrow => Ok(()),
-        _ => Err(Error(p, "expected `->`")),
-      })?;
-
-      let body = read_expr(arena, ty_arena, lexer)?;
-
-      read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-        LexemeF::End => Ok(()),
-        _ => Err(Error(p, "expected `end`")),
-      })?;
-
-      let expr = Expr(position, ExprF::Abs(name, body));
-      Ok(arena.alloc(expr))
-    },
-    LexemeF::Let => {
-      let mut bindings = vec![];
-
-      loop {
-        let lexer_clone = lexer.clone();
-
-        match read_lexeme(lexer) {
-          Ok(Lexeme(_, LexemeF::Val)) => (),
-          _ => {
-            lexer.clone_from(&lexer_clone);
-            break;
-          },
-        }
-
-        let name = read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-          LexemeF::Identifier(name) => Ok(name),
-          _ => Err(Error(p, "expected let binding name")),
-        })?;
-
-        let ty = match peek_lexeme(lexer)? {
-          Lexeme(_, LexemeF::Colon) => {
-            read_lexeme(lexer)?;
-            let ty = read_ty_expr(ty_arena, lexer)?;
-            Some(ty)
-          },
-          _ => None,
-        };
-
-        read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-          LexemeF::Equals => Ok(()),
-          _ => Err(Error(p, "expected `=`")),
-        })?;
-
-        let value = match read_expr(arena, ty_arena, lexer) {
-          Ok(expr) => expr,
-          Err(_) => {
-            lexer.clone_from(&lexer_clone);
-            break
-          },
-        };
-
-        bindings.push((name, ty, value));
+  macro_rules! token (
+    (pub $name:ident<$i:ty, $o:ty>, $submac:ident!( $($args:tt)* )) => (
+      #[allow(unused_variables)]
+      pub fn $name( i: $i ) -> $crate::nom::IResult<$i, $o, u32> {
+        delimited!(i,
+          many0!(call!($crate::parse::lex::space)),
+          $submac!($($args)*),
+          many0!(call!($crate::parse::lex::space))
+        )
       }
+    );
+  );
 
-      read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-        LexemeF::In => Ok(()),
-        _ => Err(Error(p, "expected `in`")),
-      })?;
+  // FIXME: Use is_xid_start and is_xid_continue.
+  fn is_ident_continue(c: char) -> bool {
+    c.is_alphanumeric() || c == '_' || c == '%'
+  }
 
-      let body = read_expr(arena, ty_arena, lexer)?;
+  token!(pub ident<&str, String>, do_parse!(
+    not!(call!(keyw::any)) >>
+    name: take_while1!(is_ident_continue) >>
+    (name.to_string())
+  ));
 
-      read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-        LexemeF::End => Ok(()),
-        _ => Err(Error(p, "expected `end`")),
-      })?;
+  token!(pub str<&str, String>, do_parse!(
+    tag!("\"") >>
+    name: take_until!("\"") >>
+    tag!("\"") >>
+    (name.to_string())
+  ));
 
-      let mut expr = body;
-      for &(name, ty, value) in bindings.iter().rev() {
-        expr = arena.alloc(Expr(position, ExprF::Let(name, ty, value, expr)));
-      }
-      Ok(expr)
-    },
-    LexemeF::LeftParenthesis => {
-      let expr = read_expr(arena, ty_arena, lexer)?;
-      read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-        LexemeF::RightParenthesis => Ok(()),
-        _ => Err(Error(p, "expected `)`")),
-      })?;
-      Ok(expr)
-    },
-    LexemeF::LeftBrace => {
-      let mut elems = vec![];
-      loop {
-        let lexer_clone = lexer.clone();
-        match read_expr(arena, ty_arena, lexer) {
-          Ok(expr) => elems.push(expr),
-          Err(_) => {
-            lexer.clone_from(&lexer_clone);
-            break
-          },
-        }
-        match read_lexeme(lexer) {
-          Ok(Lexeme(_, LexemeF::Comma)) => (),
-          _ => {
-            lexer.clone_from(&lexer_clone);
-            break;
-          },
-        }
-      }
-      read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-        LexemeF::RightBrace => Ok(()),
-        _ => Err(Error(p, "expected `}`")),
-      })?;
-      let expr = Expr(position, ExprF::Tup(elems));
-      Ok(arena.alloc(expr))
-    },
-    LexemeF::Str(value) => {
-      let expr = Expr(position, ExprF::Lit(Literal::Str(value)));
-      Ok(arena.alloc(expr))
-    },
-    _ => Err(Error(position, "expected expression")),
+  pub mod keyw {
+    named!(pub any<&str, &str>, alt!(
+      call!(end)    |
+      call!(false_) |
+      call!(fun)    |
+      call!(in_)    |
+      call!(let_)   |
+      call!(true_)  |
+      call!(val)
+    ));
+
+    token!(pub end   <&str, &str>, tag!("end"));
+    token!(pub false_<&str, &str>, tag!("false"));
+    token!(pub fun   <&str, &str>, tag!("fun"));
+    token!(pub in_   <&str, &str>, tag!("in"));
+    token!(pub let_  <&str, &str>, tag!("let"));
+    token!(pub true_ <&str, &str>, tag!("true"));
+    token!(pub val   <&str, &str>, tag!("val"));
+  }
+
+  pub mod punc {
+    token!(pub arrow      <&str, &str>, tag!("->"));
+    token!(pub equals     <&str, &str>, tag!("="));
+    token!(pub left_paren <&str, &str>, tag!("("));
+    token!(pub right_paren<&str, &str>, tag!(")"));
   }
 }
 
-pub fn read_ty_expr<'s, 'ty>(
-  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
-  lexer: &mut Lexer<'s>,
-) -> Result<&'ty Ty<'s, 'ty>, Error> {
-  read_ty_expr_1(ty_arena, lexer)
-}
+pub mod expr {
+  use super::*;
 
-pub fn read_ty_expr_1<'s, 'ty>(
-  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
-  lexer: &mut Lexer<'s>,
-) -> Result<&'ty Ty<'s, 'ty>, Error> {
-  let mut components = vec![read_ty_expr_2(ty_arena, lexer)?];
-  loop {
-    let lexer_clone = lexer.clone();
-    match read_lexeme(lexer) {
-      Ok(Lexeme(_, LexemeF::Arrow)) => (),
-      _ => {
-        lexer.clone_from(&lexer_clone);
-        break;
-      },
-    }
-    match read_ty_expr_2(ty_arena, lexer) {
-      Ok(argument) => {
-        components.push(argument);
-      },
-      Err(_) => {
-        lexer.clone_from(&lexer_clone);
-        break;
-      },
-    }
+  type A<'e, 't> = &'e Arena<Expr<'e, 't>>;
+  type I<'s>     = &'s str;
+  type O<'e, 't> = &'e Expr<'e, 't>;
+
+  static POS: Pos = Pos(0);
+
+  pub fn level_1<'s, 'e, 't>(i: I<'s>, a: A<'e, 't>) -> IResult<I<'s>, O<'e, 't>> {
+    map!(i, fold_many1!(call!(level_2, a), None, |acc, arg| {
+      match acc {
+        Some(callee) => Some(&*a.alloc(App(POS, callee, arg))),
+        None => Some(arg),
+      }
+    }), Option::unwrap)
   }
-  let mut ty = *components.last().unwrap();
-  for component in components.iter().rev().skip(1) {
-    let new_ty = Ty::Func(component, ty);
-    ty = ty_arena.alloc(new_ty);
+
+  pub fn level_2<'s, 'e, 't>(i: I<'s>, a: A<'e, 't>) -> IResult<I<'s>, O<'e, 't>> {
+    alt!(i,
+      do_parse!(
+        call!(lex::punc::left_paren) >>
+        expr: call!(level_1, a) >>
+        call!(lex::punc::right_paren) >>
+        (expr)
+      ) |
+      call!(bool, a) |
+      call!(str,  a) |
+      call!(var,  a) |
+      call!(abs,  a) |
+      call!(let_, a)
+    )
   }
-  Ok(ty)
-}
 
-pub fn read_ty_expr_2<'s, 'ty>(
-  ty_arena: &'ty Arena<Ty<'s, 'ty>>,
-  lexer: &mut Lexer<'s>,
-) -> Result<&'ty Ty<'s, 'ty>, Error> {
-  let Lexeme(position, lexeme) = read_lexeme(lexer)?;
-  match lexeme {
-    LexemeF::Identifier(name) => {
-      let ty = Ty::Var(name);
-      Ok(ty_arena.alloc(ty))
-    },
-    LexemeF::Forall => {
-      let name = read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-        LexemeF::Identifier(name) => Ok(name),
-        _ => Err(Error(p, "expected type variable")),
-      })?;
+  pub fn bool<'s, 'e, 't>(i: I<'s>, a: A<'e, 't>) -> IResult<I<'s>, O<'e, 't>> {
+    alt!(i,
+      map!(call!(lex::keyw::false_), |_| &*a.alloc(Bool(POS, false))) |
+      map!(call!(lex::keyw::true_),  |_| &*a.alloc(Bool(POS, true)))
+    )
+  }
 
-      read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-        LexemeF::Comma => Ok(()),
-        _ => Err(Error(p, "expected ','")),
-      })?;
+  pub fn str<'s, 'e, 't>(i: I<'s>, a: A<'e, 't>) -> IResult<I<'s>, O<'e, 't>> {
+    map!(i, call!(lex::str), |x| &*a.alloc(Str(POS, RefCell::new(x))))
+  }
 
-      let inner = read_ty_expr(ty_arena, lexer)?;
+  pub fn var<'s, 'e, 't>(i: I<'s>, a: A<'e, 't>) -> IResult<I<'s>, O<'e, 't>> {
+    map!(i, call!(lex::ident), |x| &*a.alloc(Var(POS, x)))
+  }
 
-      let ty = Ty::Forall(name, inner);
-      Ok(ty_arena.alloc(ty))
-    },
-    LexemeF::LeftParenthesis => {
-      let ty = read_ty_expr(ty_arena, lexer)?;
-      read_lexeme_if(lexer, |Lexeme(p, l)| match l {
-        LexemeF::RightParenthesis => Ok(()),
-        _ => Err(Error(p, "expected `)`")),
-      })?;
-      Ok(ty)
-    },
-    _ => Err(Error(position, "expected type")),
+  pub fn abs<'s, 'e, 't>(i: I<'s>, a: A<'e, 't>) -> IResult<I<'s>, O<'e, 't>> {
+    do_parse!(i,
+      call!(lex::keyw::fun) >>
+      param: call!(lex::ident) >>
+      call!(lex::punc::arrow) >>
+      body: call!(level_1, a) >>
+      call!(lex::keyw::end) >>
+      (a.alloc(Abs(POS, param, body)))
+    )
+  }
+
+  pub fn let_<'s, 'e, 't>(i: I<'s>, a: A<'e, 't>) -> IResult<I<'s>, O<'e, 't>> {
+    let make_let = |acc, mut vals|
+      drain_all(&mut vals)
+      .rev()
+      .fold(acc, |acc, (name, value)|
+        a.alloc(Let(POS, name, None, value, acc)));
+    do_parse!(i,
+      call!(lex::keyw::let_) >>
+      vals: many0!(do_parse!(
+        call!(lex::keyw::val) >>
+        name: call!(lex::ident) >>
+        call!(lex::punc::equals) >>
+        value: call!(level_1, a) >>
+        (name, value)
+      )) >>
+      call!(lex::keyw::in_) >>
+      body: call!(level_1, a) >>
+      call!(lex::keyw::end) >>
+      (make_let(body, vals))
+    )
+  }
+
+  fn drain_all<T>(vec: &mut Vec<T>) -> Drain<T> {
+    let range = 0 .. vec.len();
+    vec.drain(range)
   }
 }
 
@@ -278,111 +170,48 @@ pub fn read_ty_expr_2<'s, 'ty>(
 mod test {
   use super::*;
 
-  #[test]
-  fn test_read_var_expr() {
-    let ty_arena = Arena::new();
-    let arena = Arena::new();
-    assert_eq!(
-      read_expr(&arena, &ty_arena, &mut Lexer::new("foo")),
-      Ok(&Expr(Position::new(0, 1, 1), ExprF::Var("foo")))
-    );
-  }
+  mod expr_test {
+    use super::*;
 
-  #[test]
-  fn test_read_abs_expr() {
-    let ty_arena = Arena::new();
-    let arena = Arena::new();
-    assert_eq!(
-      read_expr(&arena, &ty_arena, &mut Lexer::new("fun foo -> bar end")),
-      Ok(&Expr(
-        Position::new(0, 1, 1),
-        ExprF::Abs(
-          "foo",
-          &Expr(
-            Position::new(11, 1, 12),
-            ExprF::Var("bar"),
-          ),
-        ),
-      ))
-    );
-  }
+    #[test]
+    fn test_bool() {
+      let a = Arena::new();
+      let r = expr::level_1("false", &a);
+      println!("{:?}", r);
+    }
 
-  #[test]
-  fn test_read_app_expr() {
-    let ty_arena = Arena::new();
-    let arena = Arena::new();
-    assert_eq!(
-      read_expr(&arena, &ty_arena, &mut Lexer::new("foo bar baz")),
-      Ok(&Expr(
-        Position::new(0, 1, 1),
-        ExprF::App(
-          &Expr(
-            Position::new(0, 1, 1),
-            ExprF::App(
-              &Expr(
-                Position::new(0, 1, 1),
-                ExprF::Var("foo"),
-              ),
-              &Expr(
-                Position::new(4, 1, 5),
-                ExprF::Var("bar"),
-              ),
-            ),
-          ),
-          &Expr(
-            Position::new(8, 1, 9),
-            ExprF::Var("baz"),
-          ),
-        ),
-      ))
-    );
-  }
+    #[test]
+    fn test_var() {
+      let a = Arena::new();
+      let r = expr::level_1("fantastic", &a);
+      println!("{:?}", r);
+    }
 
-  #[test]
-  fn test_read_tup_expr() {
-    let ty_arena = Arena::new();
-    let arena = Arena::new();
-    assert_eq!(
-      read_expr(&arena, &ty_arena, &mut Lexer::new("{}")),
-      Ok(&Expr(Position::new(0, 1, 1), ExprF::Tup(vec![])))
-    );
-    assert_eq!(
-      read_expr(&arena, &ty_arena, &mut Lexer::new("{x,}")),
-      Ok(&Expr(
-        Position::new(0, 1, 1),
-        ExprF::Tup(vec![
-          &Expr(
-            Position::new(1, 1, 2),
-            ExprF::Var("x"),
-          ),
-        ]),
-      ))
-    );
-    assert_eq!(
-      read_expr(&arena, &ty_arena, &mut Lexer::new("{x,y,}")),
-      Ok(&Expr(
-        Position::new(0, 1, 1),
-        ExprF::Tup(vec![
-          &Expr(
-            Position::new(1, 1, 2),
-            ExprF::Var("x"),
-          ),
-          &Expr(
-            Position::new(3, 1, 4),
-            ExprF::Var("y"),
-          ),
-        ]),
-      ))
-    );
-  }
+    #[test]
+    fn test_abs() {
+      let a = Arena::new();
+      let r = expr::level_1("fun a -> a end", &a);
+      println!("{:?}", r);
+    }
 
-  #[test]
-  fn test_read_paren_expr() {
-    let ty_arena = Arena::new();
-    let arena = Arena::new();
-    assert_eq!(
-      read_expr(&arena, &ty_arena, &mut Lexer::new("(foo)")),
-      Ok(&Expr(Position::new(1, 1, 2), ExprF::Var("foo")))
-    );
+    #[test]
+    fn test_app() {
+      let a = Arena::new();
+      let r = expr::level_1("foo bar (baz qux)", &a);
+      println!("{:?}", r);
+    }
+
+    #[test]
+    fn test_let() {
+      let a = Arena::new();
+      {
+        let r = expr::level_1("let val x = y in z end", &a);
+        println!("{:?}", r);
+      }
+      {
+        let r = expr::level_1("let val v = w val x = y in z end", &a);
+        println!("{:?}", r);
+      }
+    }
   }
 }

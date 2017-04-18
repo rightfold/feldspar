@@ -1,0 +1,7 @@
+#!/usr/bin/env feldspar
+let
+  val print = fun m -> write% stdout% (to_utf8% m) end
+  val message = "Hello, world!"
+in
+  print message
+end

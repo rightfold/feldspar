@@ -1,14 +1,15 @@
 extern crate feldspar;
+extern crate nom;
 extern crate typed_arena;
 
 use feldspar::bytecode::Inst;
 use feldspar::check::Check;
 use feldspar::check;
 use feldspar::codegen::Codegen;
-use feldspar::lex::Lexer;
 use feldspar::parse;
 use feldspar::thread::Thread;
 use feldspar::value::GC;
+use nom::IError;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
@@ -26,9 +27,9 @@ impl From<io::Error> for AnyError {
   }
 }
 
-impl From<parse::Error> for AnyError {
-  fn from(other: parse::Error) -> Self {
-    AnyError(other.1.to_string())
+impl From<IError> for AnyError {
+  fn from(other: IError) -> Self {
+    AnyError(format!("{:?}", other))
   }
 }
 
@@ -50,10 +51,11 @@ fn main_() -> Result<(), AnyError>{
   File::open(&args[1])?.read_to_string(&mut source)?;
 
   let (codegen, insts) = {
-    let ty_expr_arena = Arena::new();
     let expr_arena = Arena::new();
-    let mut lexer = Lexer::new(&source);
-    let expr = parse::read_expr(&expr_arena, &ty_expr_arena, &mut lexer)?;
+
+    let iresult = parse::expr::level_1(&source, &expr_arena);
+    println!("{:?}", iresult);
+    let expr = iresult.to_full_result()?;
     println!("{:?}", expr);
 
     let type_arena = Arena::new();
@@ -65,7 +67,7 @@ fn main_() -> Result<(), AnyError>{
           &a.pretty_string(&|t| check.purge(t)) +
           "\nwith type\n  " +
           &b.pretty_string(&|t| check.purge(t)),
-        check::Error::Var(name) =>
+        check::Error::Var(ref name) =>
           "cannot find variable\n  ".to_string() +
           name,
         check::Error::RankN =>

@@ -1,19 +1,22 @@
 use bytecode::{Chunk, ChunkID, Inst, StrID};
 use std::collections::HashMap;
-use syntax::{Expr, ExprF, Literal};
+use std::mem;
+use std::ops::DerefMut;
+use syntax::Expr;
+use syntax::Expr::*;
 
-pub struct Codegen<'s> {
-  strs: Vec<&'s str>,
+pub struct Codegen {
+  strs: Vec<String>,
   chunks: Vec<Chunk>,
 }
 
-impl<'s> Codegen<'s> {
+impl Codegen {
   pub fn new() -> Self { Codegen{strs: vec![], chunks: vec![]} }
 
-  pub fn str(&self, id: StrID) -> &'s str { self.strs[id.0] }
+  pub fn str(&self, id: StrID) -> &str { &self.strs[id.0] }
   pub fn chunk(&self, id: ChunkID) -> &Chunk { &self.chunks[id.0] }
 
-  fn new_str(&mut self, str: &'s str) -> StrID {
+  fn new_str(&mut self, str: String) -> StrID {
     self.strs.push(str);
     StrID(self.strs.len() - 1)
   }
@@ -23,95 +26,88 @@ impl<'s> Codegen<'s> {
     ChunkID(self.chunks.len() - 1)
   }
 
-  pub fn codegen_func<'e, Ty, T>(
+  pub fn codegen_func<'e, 't>(
     &mut self,
     env: &HashMap<&str, usize>,
     captures: usize,
-    body: &Expr<'s, 'e, Ty, T>,
-  ) -> ChunkID
-    where T: Clone {
+    body: &Expr<'e, 't>,
+  ) -> ChunkID {
     let mut insts = vec![];
     self.codegen_expr(env, body, &mut insts);
     insts.push(Inst::Return);
     self.new_chunk(1 + captures, captures, insts)
   }
 
-  pub fn codegen_expr<'e, Ty, T>(
+  pub fn codegen_expr<'e, 't>(
     &mut self,
     env: &HashMap<&str, usize>,
-    expr: &Expr<'s, 'e, Ty, T>,
+    expr: &Expr<'e, 't>,
     insts: &mut Vec<Inst>,
-  ) where T: Clone {
-    match expr.1 {
-      ExprF::Lit(ref lit) =>
-        self.codegen_literal(lit, insts),
-      ExprF::Var("stdout%") => // TODO: Move to feldspar::builtin
-        insts.push(Inst::NewI32(1)),
-      ExprF::Var("to_utf8%") => { // TODO: Move to feldspar::builtin
-        let chunk_id = self.new_chunk(1, 0, vec![
-          Inst::GetLocal(0),
-          Inst::Return,
-        ]);
-        insts.push(Inst::NewFunc(chunk_id));
+  ) {
+    match expr {
+      &Bool(_, value) =>
+        insts.push(Inst::NewI32(value as i32)),
+      &Str(_, ref value_cell) => {
+        let mut value = String::new();
+        let mut borrow = value_cell.borrow_mut();
+        mem::swap(borrow.deref_mut(), &mut value);
+        let str_id = self.new_str(value);
+        insts.push(Inst::NewStr(str_id));
       },
-      ExprF::Var("write%") => { // TODO: Move to feldspar::builtin
-        let action_chunk_id = self.new_chunk(3, 2, vec![
-          Inst::GetLocal(1), // handle
-          Inst::GetLocal(2), // bytes
-          Inst::Write,
-          Inst::Return,
-        ]);
-        let curry2_chunk_id = self.new_chunk(2, 1, vec![
-          Inst::GetLocal(0), // bytes
-          Inst::GetLocal(1), // handle
-          Inst::NewFunc(action_chunk_id),
-          Inst::Return,
-        ]);
-        let curry1_chunk_id = self.new_chunk(1, 0, vec![
-          Inst::GetLocal(0), // handle
-          Inst::NewFunc(curry2_chunk_id),
-          Inst::Return,
-        ]);
-        insts.push(Inst::NewFunc(curry1_chunk_id));
-      },
-      ExprF::Var(name) =>
-        insts.push(Inst::GetLocal(env[name])),
-      ExprF::Abs(param, body) => {
-        let mut body_env = HashMap::new();
+      &Var(_, ref name) =>
+        match name.as_ref() {
+          "stdout%" =>
+            insts.push(Inst::NewI32(1)),
+          "to_utf8%" => {
+            let chunk_id = self.new_chunk(1, 0, vec![
+              Inst::GetLocal(0),
+              Inst::Return,
+            ]);
+            insts.push(Inst::NewFunc(chunk_id));
+          },
+          "write%" => {
+            let action_chunk_id = self.new_chunk(3, 2, vec![
+              Inst::GetLocal(1), // handle
+              Inst::GetLocal(2), // bytes
+              Inst::Write,
+              Inst::Return,
+            ]);
+            let curry2_chunk_id = self.new_chunk(2, 1, vec![
+              Inst::GetLocal(0), // bytes
+              Inst::GetLocal(1), // handle
+              Inst::NewFunc(action_chunk_id),
+              Inst::Return,
+            ]);
+            let curry1_chunk_id = self.new_chunk(1, 0, vec![
+              Inst::GetLocal(0), // handle
+              Inst::NewFunc(curry2_chunk_id),
+              Inst::Return,
+            ]);
+            insts.push(Inst::NewFunc(curry1_chunk_id));
+          },
+          name =>
+            insts.push(Inst::GetLocal(env[name])),
+        },
+      &Abs(_, ref param, body) => {
+        let mut body_env = HashMap::<&str, _>::new();
         body_env.insert(param, 0);
-        for (i, (k, &v)) in env.iter().enumerate() {
+        for (i, (ref k, &v)) in env.iter().enumerate() {
           body_env.insert(k, i + 1);
           insts.push(Inst::GetLocal(v));
         }
         let chunk_id = self.codegen_func(&body_env, env.len(), body);
         insts.push(Inst::NewFunc(chunk_id));
       },
-      ExprF::Let(name, _, value, body) => {
-        let abs = Expr(expr.0.clone(), ExprF::Abs(name, body));
-        let app = Expr(expr.0.clone(), ExprF::App(&abs, value));
+      &Let(pos, ref name, _, value, body) => {
+        let abs = Abs(pos, name.clone(), body);
+        let app = App(pos, &abs, value);
         self.codegen_expr(env, &app, insts);
       },
-      ExprF::App(callee, argument) => {
+      &App(_, callee, argument) => {
         self.codegen_expr(env, callee, insts);
         self.codegen_expr(env, argument, insts);
         insts.push(Inst::Call);
       },
-      ExprF::Tup(ref elems) => {
-        for elem in elems {
-          self.codegen_expr(env, elem, insts);
-        }
-        insts.push(Inst::NewTuple(elems.len()));
-      },
-    }
-  }
-
-  pub fn codegen_literal(&mut self, lit: &Literal<'s>, insts: &mut Vec<Inst>) {
-    match *lit {
-      Literal::Bool(value) =>
-        insts.push(Inst::NewI32(value as i32)),
-      Literal::Str(value) =>
-        insts.push(Inst::NewStr(self.new_str(value))),
-      _ => panic!("codegen_literal: NYI"),
     }
   }
 }
