@@ -3,10 +3,10 @@ use libc;
 use std::mem;
 use value::{GC, Root};
 
-pub struct StateDiff {
+pub struct StateDiff<'gc> {
   pub jump: Jump,
   pub return_: bool,
-  pub call: Option<(Root, Root)>,
+  pub call: Option<(Root<'gc>, Root<'gc>)>,
 }
 
 pub enum Jump {
@@ -18,10 +18,10 @@ pub fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
   gc: &'gc GC,
   get_str: &GetStr,
   get_chunk: &GetChunk,
-  stack: &mut Vec<Root>,
-  locals: &mut [Root],
+  stack: &mut Vec<Root<'gc>>,
+  locals: &mut [Root<'gc>],
   inst: &Inst,
-) -> StateDiff
+) -> StateDiff<'gc>
   where
     GetStr: Fn(StrID) -> &'str str,
     GetChunk: Fn(ChunkID) -> &'chunk Chunk {

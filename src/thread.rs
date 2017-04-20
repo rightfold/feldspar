@@ -6,14 +6,14 @@ pub struct Thread<'chunk, 'gc, GetStr, GetChunk> {
   gc: &'gc GC,
   get_str: GetStr,
   get_chunk: GetChunk,
-  call_stack: Vec<StackFrame<'chunk>>,
-  eval_stack: Vec<Root>,
+  call_stack: Vec<StackFrame<'chunk, 'gc>>,
+  eval_stack: Vec<Root<'gc>>,
 }
 
-struct StackFrame<'chunk> {
+struct StackFrame<'chunk, 'gc> {
   bytecode: &'chunk [Inst],
   pcounter: usize,
-  locals: Vec<Root>,
+  locals: Vec<Root<'gc>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
