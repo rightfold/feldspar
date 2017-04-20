@@ -1,132 +1,112 @@
-use libc::c_void;
-use std::mem;
-use std::slice;
+use bytecode::ChunkID;
+use std::cell::RefCell;
+use std::rc::{Rc, Weak};
 
-extern {
-  fn fs_alloc(ptr_count: usize, aux_count: usize) -> *mut c_void;
-  fn fs_dealloc(lay: *mut c_void);
-  fn fs_ptr_count(lay: *mut c_void) -> usize;
-  fn fs_aux_count(lay: *mut c_void) -> usize;
-  fn fs_get_ptr(lay: *mut c_void, offset: usize) -> *mut c_void;
-  fn fs_set_ptr(lay: *mut c_void, offset: usize, ptr: *mut c_void) -> *mut c_void;
-  fn fs_aux(lay: *mut c_void) -> *mut u8;
+pub type Root = Rc<Layout>;
+
+#[derive(Debug)]
+pub enum Layout {
+  I32(i32),
+  Bytes(Vec<u8>),
+  Str(String),
+  Tuple0,
+  Tuple1(Weak<Layout>),
+  Tuple2(Weak<Layout>, Weak<Layout>),
+  TupleN(Vec<Weak<Layout>>),
+  Closure(ChunkID, Vec<Weak<Layout>>),
 }
 
-pub struct Ref<'a> {
-  gc: &'a GC,
-  lay: *mut c_void,
-}
-
-impl<'a> Ref<'a> {
-  pub unsafe fn get_ptr(&self, offset: usize) -> Option<Ref<'a>> {
-    if offset >= self.ptr_count() {
-      None
-    } else {
-      let lay = fs_get_ptr(self.lay, offset);
-      if lay.is_null() {
-        None
-      } else {
-        // FIXME: Tell GC to retain root.
-        Some(Ref{gc: self.gc, lay: lay})
-      }
+impl Layout {
+  pub fn i32(&self) -> Option<i32> {
+    match self {
+      &Layout::I32(value) => Some(value),
+      _ => None,
     }
   }
 
-  pub unsafe fn set_ptr(&self, offset: usize, ptr: &Ref<'a>) {
-    // FIXME: Check that GCs are the same.
-    if offset < self.ptr_count() {
-      fs_set_ptr(self.lay, offset, ptr.lay);
+  pub fn bytes(&self) -> Option<&[u8]> {
+    match self {
+      &Layout::Bytes(ref bytes) => Some(bytes),
+      &Layout::Str(ref string) => Some(string.as_bytes()),
+      _ => None,
     }
   }
 
-  pub unsafe fn aux(&self) -> &mut [u8] {
-    slice::from_raw_parts_mut(fs_aux(self.lay), self.aux_count())
-  }
-
-  unsafe fn aux_any<T>(&self) -> Option<&mut T> {
-    let aux = self.aux();
-    if aux.len() != mem::size_of::<T>() {
-      None
-    } else {
-      Some(mem::transmute::<*const u8, &mut T>(aux.as_ptr()))
+  pub fn str(&self) -> Option<&str> {
+    match self {
+      &Layout::Str(ref string) => Some(string),
+      _ => None,
     }
   }
 
-  pub unsafe fn aux_i32(&self) -> Option<&mut i32> {
-    self.aux_any()
+  pub fn tuple_elem(&self, offset: usize) -> Option<Root> {
+    match (offset, self) {
+      (_, &Layout::Tuple0)                => None,
+      (0, &Layout::Tuple1(ref elem0))     => elem0.upgrade(),
+      (_, &Layout::Tuple1(_))             => None,
+      (0, &Layout::Tuple2(ref elem0, _))  => elem0.upgrade(),
+      (1, &Layout::Tuple2(_, ref elem1))  => elem1.upgrade(),
+      (_, &Layout::Tuple2(_, _))          => None,
+      (n, &Layout::TupleN(ref elems))     =>
+        elems.get(n).and_then(Weak::upgrade),
+      _ => None,
+    }
   }
 
-  pub unsafe fn aux_usize(&self) -> Option<&mut usize> {
-    self.aux_any()
+  pub fn closure_chunk(&self) -> Option<ChunkID> {
+    match self {
+      &Layout::Closure(chunk, _) => Some(chunk),
+      _ => None,
+    }
   }
 
-  pub fn ptr_count(&self) -> usize {
-    unsafe { fs_ptr_count(self.lay) }
-  }
-
-  pub fn aux_count(&self) -> usize {
-    unsafe { fs_aux_count(self.lay) }
-  }
-}
-
-impl<'a> Clone for Ref<'a> {
-  fn clone(&self) -> Self {
-    // FIXME: Tell GC to retain root.
-    Ref{gc: self.gc, lay: self.lay}
-  }
-}
-
-impl<'a> Drop for Ref<'a> {
-  fn drop(&mut self) {
-    // FIXME: Tell GC to release root.
+  pub fn closure_capture(&self, offset: usize) -> Option<Root> {
+    match (offset, self) {
+      (n, &Layout::Closure(_, ref captures)) =>
+        captures.get(n).and_then(Weak::upgrade),
+      _ => None,
+    }
   }
 }
 
 pub struct GC {
+  values: RefCell<Vec<Rc<Layout>>>,
 }
 
 impl GC {
   pub fn new() -> Self {
-    GC{}
+    GC{values: RefCell::new(vec![])}
   }
 
-  pub fn alloc(&self, ptr_count: usize, aux_count: usize) -> Ref {
-    unsafe {
-      // FIXME: Tell GC to retain root.
-      let lay = fs_alloc(ptr_count, aux_count);
-      Ref{gc: self, lay: lay}
+  pub fn alloc(&self, layout: Layout) -> Root {
+    let rc = Rc::new(layout);
+    self.values.borrow_mut().push(rc.clone());
+    rc
+  }
+
+  pub fn alloc_i32(&self, value: i32) -> Root {
+    self.alloc(Layout::I32(value))
+  }
+
+  pub fn alloc_str(&self, str: String) -> Root {
+    self.alloc(Layout::Str(str))
+  }
+
+  pub fn alloc_tuple(&self, elems: &[Root]) -> Root {
+    match elems.len() {
+      0 => self.alloc(Layout::Tuple0),
+      1 => self.alloc(Layout::Tuple1(Rc::downgrade(&elems[0]))),
+      2 => self.alloc(Layout::Tuple2(Rc::downgrade(&elems[0]),
+                                     Rc::downgrade(&elems[1]))),
+      _ => {
+        let weaks = elems.iter().map(Rc::downgrade).collect();
+        self.alloc(Layout::TupleN(weaks))
+      },
     }
   }
 
-  pub fn alloc_i32(&self, ptr_count: usize, aux: i32) -> Ref {
-    let value = self.alloc(ptr_count, mem::size_of::<i32>());
-    unsafe { *value.aux_i32().unwrap() = aux };
-    value
-  }
-
-  pub fn alloc_usize(&self, ptr_count: usize, aux: usize) -> Ref {
-    let value = self.alloc(ptr_count, mem::size_of::<usize>());
-    unsafe { *value.aux_usize().unwrap() = aux };
-    value
-  }
-}
-
-#[cfg(test)]
-mod test {
-  use super::*;
-
-  #[test]
-  fn test_alloc() {
-    let gc = GC::new();
-    for ptr_count in 0 .. 10 {
-      for aux_count in 0 .. 10 {
-        let r = gc.alloc(ptr_count, aux_count);
-        assert_eq!(r.ptr_count(), ptr_count);
-        assert_eq!(r.aux_count(), aux_count);
-        for offset in 0 .. 10 {
-          assert!(unsafe { r.get_ptr(offset) }.is_none());
-        }
-      }
-    }
+  pub fn alloc_closure(&self, chunk: ChunkID, captures: &[Root]) -> Root {
+    let weaks = captures.iter().map(Rc::downgrade).collect();
+    self.alloc(Layout::Closure(chunk, weaks))
   }
 }

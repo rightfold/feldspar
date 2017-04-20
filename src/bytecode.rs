@@ -22,7 +22,7 @@ pub enum Inst {
 
   GetLocal(usize),
 
-  New(usize, usize),
+  NewTuple(usize),
   NewI32(i32),
   NewStr(StrID),
   NewFunc(ChunkID),

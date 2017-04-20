@@ -1,19 +1,19 @@
 use bytecode::{Chunk, ChunkID, Inst, StrID};
 use interpret::{Jump, interpret};
-use value::{GC, Ref};
+use value::{GC, Root};
 
 pub struct Thread<'chunk, 'gc, GetStr, GetChunk> {
   gc: &'gc GC,
   get_str: GetStr,
   get_chunk: GetChunk,
-  call_stack: Vec<StackFrame<'chunk, 'gc>>,
-  eval_stack: Vec<Ref<'gc>>,
+  call_stack: Vec<StackFrame<'chunk>>,
+  eval_stack: Vec<Root>,
 }
 
-struct StackFrame<'chunk, 'gc> {
+struct StackFrame<'chunk> {
   bytecode: &'chunk [Inst],
   pcounter: usize,
-  locals: Vec<Ref<'gc>>,
+  locals: Vec<Root>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -38,7 +38,7 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
       pcounter: 0,
       locals: {
         let mut locals_vec = vec![];
-        locals_vec.resize(locals, gc.alloc(0, 0));
+        locals_vec.resize(locals, gc.alloc_tuple(&[]));
         locals_vec
       },
     };
@@ -51,7 +51,7 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
     }
   }
 
-  pub unsafe fn resume(&mut self) -> Status {
+  pub fn resume(&mut self) -> Status {
     loop {
       let state_diff = match self.call_stack.last_mut() {
         None => return Status::Finished,
@@ -80,91 +80,21 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
         self.call_stack.pop();
       }
       if let Some((callee, argument)) = state_diff.call {
-        let chunk = (self.get_chunk)(ChunkID(*callee.aux_usize().unwrap()));
+        let chunk = (self.get_chunk)(callee.closure_chunk().unwrap());
         self.call_stack.push(StackFrame{
           bytecode: &chunk.insts,
           pcounter: 0,
           locals: {
             let mut locals_vec = vec![];
-            locals_vec.resize(chunk.locals, self.gc.alloc(0, 0));
+            locals_vec.resize(chunk.locals, self.gc.alloc_tuple(&[]));
             locals_vec[0] = argument;
             for offset in 0 .. chunk.captures {
-              locals_vec[offset + 1] = callee.get_ptr(offset).unwrap();
+              locals_vec[offset + 1] = callee.closure_capture(offset).unwrap();
             }
             locals_vec
           },
         });
       }
-    }
-  }
-}
-
-#[cfg(test)]
-mod test {
-  use super::*;
-
-  #[test]
-  fn test_call() {
-    unsafe {
-      let chunk = Chunk{
-        insts: vec![
-          Inst::GetLocal(1),
-          Inst::GetLocal(0),
-          Inst::New(2, 0),
-          Inst::Return,
-        ],
-        locals: 2,
-        captures: 1,
-      };
-      let gc = GC::new();
-      let bytecode = [
-        Inst::NewI32(1),
-        Inst::NewFunc(ChunkID(0)),
-        Inst::NewI32(0),
-        Inst::Call,
-        Inst::Return,
-      ];
-      let get_str = |_| panic!();
-      let get_chunk = |_| &chunk;
-      let mut thread = Thread::new(&gc, get_str, get_chunk, &bytecode, 0);
-      assert_eq!(thread.resume(), Status::Finished);
-      assert_eq!(thread.call_stack.len(), 0);
-      assert_eq!(thread.eval_stack.len(), 1);
-      assert_eq!(thread.eval_stack[0].ptr_count(), 2);
-      assert_eq!(thread.eval_stack[0].aux_count(), 0);
-      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().ptr_count(), 0);
-      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 4);
-      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), Some(&mut 1));
-      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().ptr_count(), 0);
-      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 4);
-      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), Some(&mut 0));
-    }
-  }
-
-  #[test]
-  fn test_new() {
-    unsafe {
-      let gc = GC::new();
-      let bytecode = [
-        Inst::NewI32(1),
-        Inst::NewI32(0),
-        Inst::New(2, 0),
-        Inst::Return,
-      ];
-      let get_str = |_| panic!();
-      let get_chunk = |_| panic!();
-      let mut thread = Thread::new(&gc, get_str, get_chunk, &bytecode, 0);
-      assert_eq!(thread.resume(), Status::Finished);
-      assert_eq!(thread.call_stack.len(), 0);
-      assert_eq!(thread.eval_stack.len(), 1);
-      assert_eq!(thread.eval_stack[0].ptr_count(), 2);
-      assert_eq!(thread.eval_stack[0].aux_count(), 0);
-      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().ptr_count(), 0);
-      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_count(), 4);
-      assert_eq!(thread.eval_stack[0].get_ptr(0).unwrap().aux_i32(), Some(&mut 1));
-      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().ptr_count(), 0);
-      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_count(), 4);
-      assert_eq!(thread.eval_stack[0].get_ptr(1).unwrap().aux_i32(), Some(&mut 0));
     }
   }
 }

@@ -100,7 +100,7 @@ impl<'s> Codegen<'s> {
         for elem in elems {
           self.codegen_expr(env, elem, insts);
         }
-        insts.push(Inst::New(elems.len(), 0));
+        insts.push(Inst::NewTuple(elems.len()));
       },
     }
   }

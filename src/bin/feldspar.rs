@@ -33,19 +33,13 @@ impl From<parse::Error> for AnyError {
 }
 
 fn main() {
-  unsafe {
-    main_();
-  }
-}
-
-unsafe fn main_() {
-  if let Err(err) = main__() {
+  if let Err(err) = main_() {
     let _ = writeln!(io::stderr(), "feldspar: {}", err.0);
     process::exit(1);
   }
 }
 
-unsafe fn main__() -> Result<(), AnyError>{
+fn main_() -> Result<(), AnyError>{
   let args: Vec<_> = env::args().collect();
   if args.len() < 2 {
     usage(&mut io::stderr())?;
@@ -83,7 +77,7 @@ unsafe fn main__() -> Result<(), AnyError>{
     let mut codegen = Codegen::new();
     let mut insts = vec![];
     codegen.codegen_expr(&HashMap::new(), &expr, &mut insts);
-    insts.push(Inst::New(0, 0));
+    insts.push(Inst::NewTuple(0));
     insts.push(Inst::Call);
     insts.push(Inst::Return);
 
