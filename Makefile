@@ -14,6 +14,8 @@ test:
 .PHONY: docs
 docs:
 	cd docs && make html
+	cargo doc --no-deps
+	cp -TR target/doc docs/_build/html/api
 
 .PHONY: docs-publish
 docs-publish: docs

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt;
 use syntax::{Expr, ID, Ty};
 use syntax::Expr::*;
 use syntax::{
@@ -12,61 +11,17 @@ use syntax::{
 };
 use typed_arena::Arena;
 
+/// A type error.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Error<'t> {
+  /// Two types could not be unified.
   Unify(&'t Ty<'t>, &'t Ty<'t>),
+
+  /// The variable referenced is not in scope.
   Var(String),
+
+  /// Higher-rank types are not yet supported.
   RankN,
-}
-
-impl<'t> Ty<'t> {
-  pub fn pretty<Purge, W>(&'t self, purge: &Purge, into: &mut W) -> fmt::Result
-    where
-      Purge: Fn(&'t Ty<'t>) -> &'t Ty<'t>,
-      W: fmt::Write {
-    match purge(self) {
-      &Ty::Var(ref name) =>
-        write!(into, "{}", name),
-      &Ty::Deferred(ID(id)) =>
-        write!(into, "?{}", id),
-      &Ty::Skolem(ID(id)) =>
-        write!(into, "!{}", id),
-      &Ty::Forall(ref name, inner) => {
-        write!(into, "∀ {}, ", name)?;
-        inner.pretty(purge, into)?;
-        write!(into, " end")?;
-        Ok(())
-      },
-      &Ty::Func(a, b) => {
-        write!(into, "(")?;
-        a.pretty(purge, into)?;
-        write!(into, " -> ")?;
-        b.pretty(purge, into)?;
-        write!(into, ")")?;
-        Ok(())
-      },
-      &Ty::Bool =>  write!(into, "bool"),
-      &Ty::Int =>   write!(into, "int"),
-      &Ty::Str =>   write!(into, "str"),
-      &Ty::Bytes => write!(into, "bytes"),
-      &Ty::Tuple(ref elem_tys) => {
-        write!(into, "{{")?;
-        for elem_ty in elem_tys {
-          elem_ty.pretty(purge, into)?;
-          write!(into, ",")?;
-        }
-        write!(into, "}}")?;
-        Ok(())
-      },
-    }
-  }
-
-  pub fn pretty_string<Purge>(&'t self, purge: &Purge) -> String
-    where Purge: Fn(&'t Ty<'t>) -> &'t Ty<'t> {
-    let mut pretty = String::new();
-    self.pretty(purge, &mut pretty).unwrap();
-    pretty
-  }
 }
 
 pub struct Check<'t> {
@@ -76,16 +31,19 @@ pub struct Check<'t> {
 }
 
 impl<'t> Check<'t> {
+  /// Create a new type checker with no solved unification variables.
   pub fn new(arena: &'t Arena<Ty<'t>>) -> Self {
     Check{arena: arena, next_id: 0, solved: HashMap::new()}
   }
 
+  /// Create a new unsolved unification variable.
   pub fn fresh_unify(&mut self) -> &'t Ty<'t> {
     let ty = self.arena.alloc(Ty::Deferred(ID(self.next_id)));
     self.next_id += 1;
     ty
   }
 
+  /// Create a new Skolem.
   pub fn fresh_skolem(&mut self) -> &'t Ty<'t> {
     let ty = self.arena.alloc(Ty::Skolem(ID(self.next_id)));
     self.next_id += 1;
@@ -96,6 +54,7 @@ impl<'t> Check<'t> {
     self.solved.insert(id, ty);
   }
 
+  /// Recursively dereference solved unification variables.
   pub fn purge(&self, ty: &'t Ty<'t>) -> &'t Ty<'t> {
     if let &Ty::Deferred(id) = ty {
       self.solved.get(&id).map(|uy| self.purge(uy)).unwrap_or(ty)
@@ -104,6 +63,7 @@ impl<'t> Check<'t> {
     }
   }
 
+  /// Unify two types, solving unification variables.
   pub fn unify(&mut self, ty: &'t Ty<'t>, uy: &'t Ty<'t>)
     -> Result<(), Error<'t>> {
     match (self.purge(ty), self.purge(uy)) {
@@ -142,6 +102,7 @@ impl<'t> Check<'t> {
     }
   }
 
+  /// Infer the type of an expression, solving unification variables.
   pub fn infer<'e>(
     &mut self,
     env: &HashMap<&str, &'t Ty<'t>>,
@@ -201,6 +162,15 @@ impl<'t> Check<'t> {
     }
   }
 
+  /// Replace universally quantified type variables by new unsolved unification
+  /// variables.
+  ///
+  /// # Example
+  ///
+  /// ```text
+  /// >>> monomorphize ∀ a b, a -> b -> int
+  /// ?0 -> ?1 -> int
+  /// ```
   pub fn monomorphize(&mut self, ty: &'t Ty<'t>)
     -> Result<&'t Ty<'t>, Error<'t>> {
     Self::replace_ty_vars(
@@ -211,6 +181,14 @@ impl<'t> Check<'t> {
     )
   }
 
+  /// Replace universally quantified type variables by new Skolems.
+  ///
+  /// # Example
+  ///
+  /// ```text
+  /// >>> skolemize ∀ a b, a -> b -> int
+  /// !0 -> !1 -> int
+  /// ```
   pub fn skolemize(&mut self, ty: &'t Ty<'t>)
     -> Result<&'t Ty<'t>, Error<'t>> {
     Self::replace_ty_vars(

@@ -3,17 +3,26 @@ use libc;
 use std::mem;
 use value::{GC, Root};
 
+/// A description of how the executed instruction would change the call stack.
+/// If `return_` is `true`, and `call` is not `None`, a tail call will occur.
 pub struct StateDiff<'gc> {
+  /// Where to jump to.
   pub jump: Jump,
+
+  /// Whether to return.
   pub return_: bool,
+
+  /// What function to call, if any, and with which argument.
   pub call: Option<(Root<'gc>, Root<'gc>)>,
 }
 
+/// Jump to a different instruction within the same chunk.
 pub enum Jump {
   Absolute(usize),
   Relative(isize),
 }
 
+/// Interpret an instruction.
 pub fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
   gc: &'gc GC,
   get_str: &GetStr,

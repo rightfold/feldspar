@@ -14,3 +14,4 @@ Feldspar is a programming language with the following goals:
    install
    first
    structure
+   interpreter
