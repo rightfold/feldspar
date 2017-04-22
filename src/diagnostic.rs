@@ -21,12 +21,25 @@ impl<'e, 't> Diagnostic<'e, 't> {
     }
   }
 
+  pub fn env(&self) -> Option<&HashMap<&'e str, &'t Ty<'t>>> {
+    match self {
+      &Diagnostic::CannotUnifyTypes(_, ref e, _, _) => Some(e),
+      &Diagnostic::ValueIsNotInScope(_, ref e, _) => Some(e),
+      &Diagnostic::TypeIsNotInScope(_, _, _) => None,
+      &Diagnostic::HigherRankTypesAreNotSupported(_) => None,
+    }
+  }
+
   pub fn fmt<Purge, W>(&self, purge: &Purge, w: &mut W) -> fmt::Result
     where
       Purge: Fn(&'t Ty<'t>) -> &'t Ty<'t>,
       W: fmt::Write {
     write!(w, "{}: ", self.pos().offset())?;
     self.fmt_summary(purge, w)?;
+    for env in self.env() {
+      write!(w, "\n\n")?;
+      self.fmt_env(purge, env, w)?;
+    }
     Ok(())
   }
 
@@ -50,6 +63,23 @@ impl<'e, 't> Diagnostic<'e, 't> {
       &Diagnostic::HigherRankTypesAreNotSupported(_) =>
         write!(w, "higher-rank types are not supported"),
     }
+  }
+
+  fn fmt_env<Purge, W>(
+    &self,
+    purge: &Purge,
+    env: &HashMap<&str, &'t Ty<'t>>,
+    w: &mut W,
+  ) -> fmt::Result
+    where
+      Purge: Fn(&'t Ty<'t>) -> &'t Ty<'t>,
+      W: fmt::Write {
+    write!(w, "  Where:\n");
+    for (k, v) in env {
+      write!(w, "\n    {}\t: ", k);
+      v.pretty(purge, w)?;
+    }
+    Ok(())
   }
 
   pub fn fmt_string<Purge>(&self, purge: &Purge) -> String
