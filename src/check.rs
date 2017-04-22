@@ -25,27 +25,26 @@ pub enum Error<'t> {
 }
 
 pub struct Check<'t> {
-  arena: &'t Arena<Ty<'t>>,
   next_id: usize,
   solved: HashMap<ID, &'t Ty<'t>>,
 }
 
 impl<'t> Check<'t> {
   /// Create a new type checker with no solved unification variables.
-  pub fn new(arena: &'t Arena<Ty<'t>>) -> Self {
-    Check{arena: arena, next_id: 0, solved: HashMap::new()}
+  pub fn new() -> Self {
+    Check{next_id: 0, solved: HashMap::new()}
   }
 
   /// Create a new unsolved unification variable.
-  pub fn fresh_unify(&mut self) -> &'t Ty<'t> {
-    let ty = self.arena.alloc(Ty::Deferred(ID(self.next_id)));
+  pub fn fresh_unify(&mut self, arena: &'t Arena<Ty<'t>>) -> &'t Ty<'t> {
+    let ty = arena.alloc(Ty::Deferred(ID(self.next_id)));
     self.next_id += 1;
     ty
   }
 
   /// Create a new Skolem.
-  pub fn fresh_skolem(&mut self) -> &'t Ty<'t> {
-    let ty = self.arena.alloc(Ty::Skolem(ID(self.next_id)));
+  pub fn fresh_skolem(&mut self, arena: &'t Arena<Ty<'t>>) -> &'t Ty<'t> {
+    let ty = arena.alloc(Ty::Skolem(ID(self.next_id)));
     self.next_id += 1;
     ty
   }
@@ -106,6 +105,7 @@ impl<'t> Check<'t> {
   /// Infer the type of an expression, solving unification variables.
   pub fn infer<'e>(
     &mut self,
+    arena: &'t Arena<Ty<'t>>,
     env: &HashMap<&str, &'t Ty<'t>>,
     expr: &Expr<'e, 't>,
   ) -> Result<&'t Ty<'t>, Error<'t>> {
@@ -120,43 +120,43 @@ impl<'t> Check<'t> {
           _ => {
             let poly_ty = env.get::<str>(name).map(|&ty| ty)
                             .ok_or_else(|| Error::Var(name.clone()))?;
-            self.monomorphize(poly_ty)
+            self.monomorphize(arena, poly_ty)
           },
         },
       &Abs(_, ref param, body) => {
-        let param_ty = self.fresh_unify();
+        let param_ty = self.fresh_unify(arena);
 
         let mut body_env = env.clone();
         body_env.insert(param, param_ty);
-        let result_ty = self.infer(&body_env, body)?;
+        let result_ty = self.infer(arena, &body_env, body)?;
 
-        let func_ty = self.arena.alloc(Ty::Func(param_ty, result_ty));
+        let func_ty = arena.alloc(Ty::Func(param_ty, result_ty));
         Ok(func_ty)
       },
       &App(_, callee, argument) => {
-        let callee_ty = self.infer(env, callee)?;
-        let argument_ty = self.infer(env, argument)?;
+        let callee_ty = self.infer(arena, env, callee)?;
+        let argument_ty = self.infer(arena, env, argument)?;
 
-        let result_ty = self.fresh_unify();
-        let func_ty = self.arena.alloc(Ty::Func(argument_ty, result_ty));
+        let result_ty = self.fresh_unify(arena);
+        let func_ty = arena.alloc(Ty::Func(argument_ty, result_ty));
         self.unify(callee_ty, func_ty)?;
 
         Ok(result_ty)
       },
       &Let(_, ref name, name_ty_opt, value, body) => {
-        let value_ty = self.infer(env, value)?;
+        let value_ty = self.infer(arena, env, value)?;
 
         let mut body_env = env.clone();
         body_env.insert(name, match name_ty_opt {
           None => value_ty,
           Some(name_ty) => {
-            let skolemized_ty = self.skolemize(name_ty)?;
+            let skolemized_ty = self.skolemize(arena, name_ty)?;
             self.unify(skolemized_ty, value_ty)?;
             name_ty
           },
         });
 
-        let body_ty = self.infer(&body_env, body)?;
+        let body_ty = self.infer(arena, &body_env, body)?;
 
         Ok(body_ty)
       },
@@ -172,11 +172,11 @@ impl<'t> Check<'t> {
   /// >>> monomorphize ∀ a b, a -> b -> int
   /// ?0 -> ?1 -> int
   /// ```
-  pub fn monomorphize(&mut self, ty: &'t Ty<'t>)
+  pub fn monomorphize(&mut self, arena: &'t Arena<Ty<'t>>, ty: &'t Ty<'t>)
     -> Result<&'t Ty<'t>, Error<'t>> {
     Self::replace_ty_vars(
-      self.arena,
-      &mut || self.fresh_unify(),
+      arena,
+      &mut || self.fresh_unify(arena),
       &HashMap::new(),
       ty,
     )
@@ -190,11 +190,11 @@ impl<'t> Check<'t> {
   /// >>> skolemize ∀ a b, a -> b -> int
   /// !0 -> !1 -> int
   /// ```
-  pub fn skolemize(&mut self, ty: &'t Ty<'t>)
+  pub fn skolemize(&mut self, arena: &'t Arena<Ty<'t>>, ty: &'t Ty<'t>)
     -> Result<&'t Ty<'t>, Error<'t>> {
     Self::replace_ty_vars(
-      self.arena,
-      &mut || self.fresh_skolem(),
+      arena,
+      &mut || self.fresh_skolem(arena),
       &HashMap::new(),
       ty,
     )
@@ -252,14 +252,14 @@ mod test {
   #[test]
   fn test_unify() {
     let arena = Arena::new();
-    let mut check = Check::new(&arena);
+    let mut check = Check::new();
 
     let ty1 = &TY_BOOL;
     let ty2 = arena.alloc(Ty::Func(ty1, ty1));
-    let ty3 = check.fresh_unify();
-    let ty4 = check.fresh_unify();
-    let ty5 = check.fresh_unify();
-    let ty6 = check.fresh_unify();
+    let ty3 = check.fresh_unify(&arena);
+    let ty4 = check.fresh_unify(&arena);
+    let ty5 = check.fresh_unify(&arena);
+    let ty6 = check.fresh_unify(&arena);
 
     assert_eq!(check.unify(ty1, ty1), Ok(()));
 
@@ -282,7 +282,7 @@ mod test {
     let expr_arena = Arena::new();
     let ty_arena = Arena::new();
 
-    let mut check = Check::new(&ty_arena);
+    let mut check = Check::new();
 
     let mut env = HashMap::new();
     env.insert("vari", &TY_INT);
@@ -293,7 +293,7 @@ mod test {
       expr_arena.alloc(Var(Pos(0), "even".to_string())),
       expr_arena.alloc(Var(Pos(0), "vari".to_string())),
     );
-    let ty = check.infer(&env, &expr);
+    let ty = check.infer(&ty_arena, &env, &expr);
     assert_eq!(ty.map(|t| check.purge(t)), Ok(&TY_BOOL));
   }
 }

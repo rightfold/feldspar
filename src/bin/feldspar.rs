@@ -58,9 +58,9 @@ fn main_() -> Result<(), AnyError>{
     let expr = iresult.to_full_result()?;
     println!("{:?}", expr);
 
-    let type_arena = Arena::new();
-    let mut check = Check::new(&type_arena);
-    let ty = check.infer(&HashMap::new(), &expr).map_err(|err| {
+    let ty_arena = Arena::new();
+    let mut check = Check::new();
+    let ty = check.infer(&ty_arena, &HashMap::new(), &expr).map_err(|err| {
       AnyError(match err {
         check::Error::Unify(a, b) =>
           "cannot unify type\n  ".to_string() +
