@@ -1,21 +1,21 @@
 use bytecode::ChunkID;
-use std::cell::RefCell;
+use std::cell::{RefCell, RefMut};
+use std::io;
 use std::marker::PhantomData;
 use std::rc;
 use std::rc::Rc;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Root<'a> {
   gc: PhantomData<&'a ()>,
   layout: Rc<Layout>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct Weak {
   layout: rc::Weak<Layout>,
 }
 
-#[derive(Debug)]
 enum Layout {
   I32(i32),
   Bytes(Vec<u8>),
@@ -25,6 +25,7 @@ enum Layout {
   Tuple2(Weak, Weak),
   TupleN(Vec<Weak>),
   Closure(ChunkID, Vec<Weak>),
+  FileHandle(RefCell<Box<io::Write>>),
 }
 
 impl<'a> Root<'a> {
@@ -86,6 +87,13 @@ impl<'a> Root<'a> {
       _ => None,
     }
   }
+
+  pub fn file_handle_write(&self) -> Option<RefMut<io::Write>> {
+    match self.layout.as_ref() {
+      &Layout::FileHandle(ref write) => Some(write.borrow_mut()),
+      _ => None,
+    }
+  }
 }
 
 pub struct GC {
@@ -128,5 +136,11 @@ impl GC {
     -> Root<'a> {
     let weaks = captures.iter().map(Root::downgrade).collect();
     self.alloc(Layout::Closure(chunk, weaks))
+  }
+
+  pub fn alloc_file_handle<W>(&self, write: W) -> Root
+    where W: io::Write + 'static {
+    let write_box = RefCell::new(Box::new(write));
+    self.alloc(Layout::FileHandle(write_box))
   }
 }

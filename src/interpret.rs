@@ -1,6 +1,5 @@
 use bytecode::{Chunk, ChunkID, Inst, StrID};
-use libc;
-use std::mem;
+use std::io;
 use value::{GC, Root};
 
 /// A description of how the executed instruction would change the call stack.
@@ -47,6 +46,7 @@ pub fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
       let callee = stack.pop().unwrap();
       state_diff.call = Some((callee, argument));
     },
+
     Inst::Return =>
       state_diff.return_ = true,
 
@@ -66,13 +66,16 @@ pub fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
       let new = gc.alloc_tuple(&ptrs);
       stack.push(new);
     },
+
     Inst::NewI32(value) =>
       stack.push(gc.alloc_i32(value)),
+
     Inst::NewStr(str_id) => {
       let str_ref = get_str(str_id);
       let new = gc.alloc_str(str_ref.to_string());
       stack.push(new);
     },
+
     Inst::NewFunc(chunk_id) => {
       let chunk = get_chunk(chunk_id);
       let mut ptrs = Vec::with_capacity(chunk.captures);
@@ -85,21 +88,21 @@ pub fn interpret<'str, 'gc, 'chunk, GetChunk, GetStr>(
       stack.push(new);
     },
 
+    Inst::Stdout => {
+      let new = gc.alloc_file_handle(io::stdout());
+      stack.push(new)
+    },
+
     Inst::Write => {
-      let handle = stack.pop().unwrap();
+      let file_handle_root = stack.pop().unwrap();
       let bytes_root = stack.pop().unwrap();
+
+      let mut write = file_handle_root.file_handle_write().unwrap();
       let bytes = bytes_root.bytes().unwrap();
 
-      let status =
-        unsafe {
-          libc::write(
-            handle.i32().unwrap(),
-            mem::transmute(bytes.as_ptr()),
-            bytes.len(),
-          ) as i32
-        };
+      let status = write.write(bytes).unwrap();
 
-      let result = gc.alloc_i32(status);
+      let result = gc.alloc_i32(status as i32);
       stack.push(result);
     },
   }

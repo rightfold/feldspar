@@ -1,4 +1,3 @@
-extern crate libc;
 #[macro_use]
 extern crate nom;
 extern crate typed_arena;

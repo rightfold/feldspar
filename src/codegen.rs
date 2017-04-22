@@ -57,7 +57,7 @@ impl Codegen {
       &Var(_, ref name) =>
         match name.as_ref() {
           "stdout%" =>
-            insts.push(Inst::NewI32(1)),
+            insts.push(Inst::Stdout),
           "to_utf8%" => {
             let chunk_id = self.new_chunk(1, 0, vec![
               Inst::GetLocal(0),

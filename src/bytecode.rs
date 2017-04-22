@@ -51,6 +51,9 @@ pub enum Inst {
   /// variables as captures, and push the new function onto the stack.
   NewFunc(ChunkID),
 
+  /// Push the stdout file handle onto the stack.
+  Stdout,
+
   /// Pop a buffer off the stack, pop a handle off the stack, write the
   /// buffer to the handle, and push the number of bytes written onto the
   /// stack.
