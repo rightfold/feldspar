@@ -50,14 +50,14 @@ fn main_() -> Result<(), AnyError>{
   File::open(&args[1])?.read_to_string(&mut source)?;
 
   let (codegen, insts) = {
+    let ty_arena = Arena::new();
     let expr_arena = Arena::new();
 
-    let iresult = parse::expr::level_1(&source, &expr_arena);
+    let iresult = parse::expr::level_1(&source, (&expr_arena, &ty_arena));
     println!("{:?}", iresult);
     let expr = iresult.to_full_result()?;
     println!("{:?}", expr);
 
-    let ty_arena = Arena::new();
     let mut check = Check::new();
     let ty = check.infer(&ty_arena, &HashMap::new(), &expr)
                .map_err(|err| AnyError(err.fmt_string(&|t| check.purge(t))))?;
