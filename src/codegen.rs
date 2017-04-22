@@ -1,7 +1,7 @@
 use bytecode::{Chunk, ChunkID, Inst, StrID};
 use std::collections::HashMap;
 use std::mem;
-use std::ops::DerefMut;
+use std::ops::{Deref, DerefMut};
 use syntax::Expr;
 use syntax::Expr::*;
 
@@ -13,8 +13,13 @@ pub struct Codegen {
 impl Codegen {
   pub fn new() -> Self { Codegen{strs: vec![], chunks: vec![]} }
 
-  pub fn str(&self, id: StrID) -> &str { &self.strs[id.0] }
-  pub fn chunk(&self, id: ChunkID) -> &Chunk { &self.chunks[id.0] }
+  pub fn str(&self, id: StrID) -> Option<&str> {
+    self.strs.get(id.0).map(Deref::deref)
+  }
+
+  pub fn chunk(&self, id: ChunkID) -> Option<&Chunk> {
+    self.chunks.get(id.0)
+  }
 
   fn new_str(&mut self, str: String) -> StrID {
     self.strs.push(str);

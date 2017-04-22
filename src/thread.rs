@@ -1,5 +1,5 @@
 use bytecode::{Chunk, ChunkID, Inst, StrID};
-use interpret::{Jump, interpret};
+use interpret::{Error, Jump, interpret};
 use value::{GC, Root};
 
 pub struct Thread<'chunk, 'gc, GetStr, GetChunk> {
@@ -24,8 +24,8 @@ pub enum Status {
 
 impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
   where
-    GetStr: Fn(StrID) -> &'str str,
-    GetChunk: Fn(ChunkID) -> &'chunk Chunk {
+    GetStr: Fn(StrID) -> Option<&'str str>,
+    GetChunk: Fn(ChunkID) -> Option<&'chunk Chunk> {
   pub fn new(
     gc: &'gc GC,
     get_str: GetStr,
@@ -51,10 +51,10 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
     }
   }
 
-  pub fn resume(&mut self) -> Status {
+  pub fn resume(&mut self) -> Result<Status, Error> {
     loop {
       let state_diff = match self.call_stack.last_mut() {
-        None => return Status::Finished,
+        None => return Ok(Status::Finished),
         Some(stack_frame) => {
           let state_diff = interpret(
             self.gc,
@@ -63,7 +63,7 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
             &mut self.eval_stack,
             &mut stack_frame.locals,
             &stack_frame.bytecode[stack_frame.pcounter],
-          );
+          )?;
           match state_diff.jump {
             Jump::Absolute(offset) => stack_frame.pcounter = offset,
             Jump::Relative(offset) =>
@@ -80,7 +80,7 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
         self.call_stack.pop();
       }
       if let Some((callee, argument)) = state_diff.call {
-        let chunk = (self.get_chunk)(callee.closure_chunk().unwrap());
+        let chunk = (self.get_chunk)(callee.closure_chunk().unwrap()).unwrap();
         self.call_stack.push(StackFrame{
           bytecode: &chunk.insts,
           pcounter: 0,

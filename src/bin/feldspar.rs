@@ -5,6 +5,7 @@ extern crate typed_arena;
 use feldspar::bytecode::Inst;
 use feldspar::check::Check;
 use feldspar::codegen::Codegen;
+use feldspar::interpret;
 use feldspar::parse;
 use feldspar::thread::Thread;
 use feldspar::value::GC;
@@ -28,6 +29,12 @@ impl From<io::Error> for AnyError {
 
 impl From<IError> for AnyError {
   fn from(other: IError) -> Self {
+    AnyError(format!("{:?}", other))
+  }
+}
+
+impl From<interpret::Error> for AnyError {
+  fn from(other: interpret::Error) -> Self {
     AnyError(format!("{:?}", other))
   }
 }
@@ -76,13 +83,13 @@ fn main_() -> Result<(), AnyError>{
   let gc = GC::new();
   let mut thread = Thread::new(
     &gc,
-    |id| &codegen.str(id),
-    |id| &codegen.chunk(id),
+    |id| codegen.str(id),
+    |id| codegen.chunk(id),
     &insts,
     0,
   );
 
-  thread.resume();
+  thread.resume()?;
 
   Ok(())
 }
