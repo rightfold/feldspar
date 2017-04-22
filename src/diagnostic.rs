@@ -74,9 +74,9 @@ impl<'e, 't> Diagnostic<'e, 't> {
     where
       Purge: Fn(&'t Ty<'t>) -> &'t Ty<'t>,
       W: fmt::Write {
-    write!(w, "  Where:\n");
+    write!(w, "  Where:\n")?;
     for (k, v) in env {
-      write!(w, "\n    {}\t: ", k);
+      write!(w, "\n    {}\t: ", k)?;
       v.pretty(purge, w)?;
     }
     Ok(())
