@@ -4,7 +4,6 @@ extern crate typed_arena;
 
 use feldspar::bytecode::Inst;
 use feldspar::check::Check;
-use feldspar::check;
 use feldspar::codegen::Codegen;
 use feldspar::parse;
 use feldspar::thread::Thread;
@@ -60,20 +59,8 @@ fn main_() -> Result<(), AnyError>{
 
     let ty_arena = Arena::new();
     let mut check = Check::new();
-    let ty = check.infer(&ty_arena, &HashMap::new(), &expr).map_err(|err| {
-      AnyError(match err {
-        check::Error::Unify(a, b) =>
-          "cannot unify type\n  ".to_string() +
-          &a.pretty_string(&|t| check.purge(t)) +
-          "\nwith type\n  " +
-          &b.pretty_string(&|t| check.purge(t)),
-        check::Error::Var(ref name) =>
-          "cannot find variable\n  ".to_string() +
-          name,
-        check::Error::RankN =>
-          "higher-rank types are not yet supported".to_string()
-      })
-    })?;
+    let ty = check.infer(&ty_arena, &HashMap::new(), &expr)
+               .map_err(|err| AnyError(err.fmt_string(&|t| check.purge(t))))?;
     println!("{}", ty.pretty_string(&|t| check.purge(t)));
 
     let mut codegen = Codegen::new();
