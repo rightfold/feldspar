@@ -51,9 +51,10 @@ not consistent with each other, the program will be rejected *prior to
 execution*. For example, consider the following ill-typed program::
 
     let
-      val print = fun message -> write% stdout% (to_utf8% message) end
+      val print = fun message -> write% stdout% message end
+      val message = "Hello, world!"
     in
-      print stdout% "Hello, world!"
+      print message
     end
 
 When we attempt to execute this program, we will get a type error:
@@ -62,10 +63,12 @@ When we attempt to execute this program, we will get a type error:
 
 ::
 
-    feldspar: cannot unify type
-      file_handle
-    with type
-      str
+    cannot unify types `bytes` and `str`
 
-The mistake is that ``print`` already assumes a certain file handle, so we need
-not pass one as an argument.
+      Where:
+
+        message : str
+        print : (bytes -> int)
+
+The mistake is that ``print`` takes bytes, not a string, however a string is
+passed as an argument.
