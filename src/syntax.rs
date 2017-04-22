@@ -74,6 +74,9 @@ pub enum Ty<'t> {
   /// The type of byte strings.
   Bytes,
 
+  /// The type of file handles.
+  FileHandle,
+
   /// Tuple types.
   Tuple(Vec<&'t Ty<'t>>),
 }
@@ -109,6 +112,7 @@ impl<'t> Ty<'t> {
       &Ty::Int =>   write!(into, "int"),
       &Ty::Str =>   write!(into, "str"),
       &Ty::Bytes => write!(into, "bytes"),
+      &Ty::FileHandle => write!(into, "file_handle"),
       &Ty::Tuple(ref elem_tys) => {
         write!(into, "{{")?;
         for elem_ty in elem_tys {
@@ -136,8 +140,9 @@ pub static TY_BOOL:  Ty<'static> = Ty::Bool;
 pub static TY_INT:   Ty<'static> = Ty::Int;
 pub static TY_STR:   Ty<'static> = Ty::Str;
 pub static TY_BYTES: Ty<'static> = Ty::Bytes;
+pub static TY_FILE_HANDLE: Ty<'static> = Ty::FileHandle;
 
-pub static BUILTIN_STDOUT_TY:  Ty<'static> = Ty::Int;
+pub static BUILTIN_STDOUT_TY:  Ty<'static> = Ty::FileHandle;
 pub static BUILTIN_TO_UTF8_TY: Ty<'static> = Ty::Func(&TY_STR, &TY_BYTES);
 pub static BUILTIN_WRITE_TY:   Ty<'static> =
-  Ty::Func(&TY_INT, &Ty::Func(&TY_BYTES, &TY_INT)); // FIXME: Return io int.
+  Ty::Func(&TY_FILE_HANDLE, &Ty::Func(&TY_BYTES, &TY_INT)); // FIXME: Return io int.

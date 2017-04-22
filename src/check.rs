@@ -88,6 +88,7 @@ impl<'t> Check<'t> {
       (&Ty::Int,   &Ty::Int)   => Ok(()),
       (&Ty::Str,   &Ty::Str)   => Ok(()),
       (&Ty::Bytes, &Ty::Bytes) => Ok(()),
+      (&Ty::FileHandle, &Ty::FileHandle) => Ok(()),
       (&Ty::Tuple(ref elem_tys), &Ty::Tuple(ref elem_uys)) => {
         if elem_tys.len() != elem_uys.len() {
           Err(Error::Unify(&TY_BOOL, &TY_INT)) // FIXME: Tuple types.
@@ -237,6 +238,7 @@ impl<'t> Check<'t> {
       &Ty::Int   => Ok(ty),
       &Ty::Str   => Ok(ty),
       &Ty::Bytes => Ok(ty),
+      &Ty::FileHandle => Ok(ty),
       &Ty::Tuple(_) => panic!("Check::skolemize_no_forall: NYI"),
     }
   }

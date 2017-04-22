@@ -63,9 +63,9 @@ When we attempt to execute this program, we will get a type error:
 ::
 
     feldspar: cannot unify type
-      int
+      file_handle
     with type
       str
 
-The mistake is that ``print`` already assumes a certain file descriptor, so we
-need not pass one as an argument.
+The mistake is that ``print`` already assumes a certain file handle, so we need
+not pass one as an argument.
