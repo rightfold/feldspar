@@ -1,5 +1,4 @@
-use diagnostic::Diagnostic;
-use pos::Pos;
+use diagnostic::{Diagnostic, Pos};
 use std::collections::HashMap;
 use syntax::{Expr, ID, Ty};
 use syntax::Expr::*;

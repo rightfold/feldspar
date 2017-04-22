@@ -1,5 +1,5 @@
+use diagnostic::Pos;
 use nom::{ErrorKind, IResult, Needed};
-use pos::Pos;
 use std::cell::RefCell;
 use std::vec::Drain;
 use syntax::Expr::*;

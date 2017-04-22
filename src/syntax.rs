@@ -1,4 +1,4 @@
-use pos::Pos;
+use diagnostic::Pos;
 use std::cell::RefCell;
 use std::fmt;
 

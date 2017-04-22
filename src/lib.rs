@@ -8,7 +8,6 @@ pub mod codegen;
 pub mod diagnostic;
 pub mod interpret;
 pub mod parse;
-pub mod pos;
 pub mod syntax;
 pub mod thread;
 pub mod value;

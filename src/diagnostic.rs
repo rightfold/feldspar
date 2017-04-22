@@ -1,7 +1,16 @@
-use pos::Pos;
 use std::collections::HashMap;
 use std::fmt;
 use syntax::Ty;
+
+/// A source position, represented by the offset in bytes.
+#[derive(Clone, Copy, Debug)]
+pub struct Pos(pub usize);
+
+impl Pos {
+  pub fn offset(&self) -> usize {
+    self.0
+  }
+}
 
 #[derive(Clone, Debug)]
 pub enum Diagnostic<'e, 't> {
