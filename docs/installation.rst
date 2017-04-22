@@ -9,13 +9,13 @@ Cargo installed.
 
 ::
 
-    git clone git@github.com:rightfold/feldspar.git
-    cd feldspar
-    make build
-    export PATH="$PATH:$PWD/target/debug"
+    $ git clone git@github.com:rightfold/feldspar.git
+    $ cd feldspar
+    $ make build
+    $ export PATH="$PATH:$PWD/target/debug"
 
 You can now run Feldspar programs.
 
 ::
 
-    feldspar example/hello.fls
+    $ feldspar examples/hello.fls
