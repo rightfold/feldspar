@@ -25,9 +25,12 @@ pub enum Jump {
 #[derive(Clone, Debug)]
 pub enum Error {
   StackUnderflow,
+  NoInstructionsLeft,
   UnknownStr,
   UnknownChunk,
+  UnknownCapture,
   NotABytes,
+  NotAClosure,
   NotAFileHandle,
 }
 

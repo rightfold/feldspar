@@ -62,7 +62,8 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
             &self.get_chunk,
             &mut self.eval_stack,
             &mut stack_frame.locals,
-            &stack_frame.bytecode[stack_frame.pcounter],
+            stack_frame.bytecode.get(stack_frame.pcounter)
+              .ok_or(Error::NoInstructionsLeft)?,
           )?;
           match state_diff.jump {
             Jump::Absolute(offset) => stack_frame.pcounter = offset,
@@ -80,7 +81,8 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
         self.call_stack.pop();
       }
       if let Some((callee, argument)) = state_diff.call {
-        let chunk = (self.get_chunk)(callee.closure_chunk().unwrap()).unwrap();
+        let chunk_id = callee.closure_chunk().ok_or(Error::NotAClosure)?;
+        let chunk = (self.get_chunk)(chunk_id).ok_or(Error::UnknownChunk)?;
         self.call_stack.push(StackFrame{
           bytecode: &chunk.insts,
           pcounter: 0,
@@ -89,7 +91,8 @@ impl<'str, 'chunk, 'gc, GetStr, GetChunk> Thread<'chunk, 'gc, GetStr, GetChunk>
             locals_vec.resize(chunk.locals, self.gc.alloc_tuple(&[]));
             locals_vec[0] = argument;
             for offset in 0 .. chunk.captures {
-              locals_vec[offset + 1] = callee.closure_capture(offset).unwrap();
+              locals_vec[offset + 1] = callee.closure_capture(offset)
+                                         .ok_or(Error::UnknownCapture)?;
             }
             locals_vec
           },
